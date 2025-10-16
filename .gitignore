@@ -1,0 +1,5 @@
+.vscode/
+.idea/
+cmake-build-debug/
+react/node_modules/
+react/build/
