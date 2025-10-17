@@ -89,3 +89,9 @@ See here for all available parameters and their default values:
 
 ### TODOs
 - [ ] Add/test qos-profile-overrides-path
+
+
+#### Acknowledgement
+This project includes components from:
+- ROS 2 [rosbag2](https://github.com/ros2/rosbag2)
+- [CLI11](https://github.com/CLIUtils/CLI11) by Henry Schreiner (BSD-3-Clause)
