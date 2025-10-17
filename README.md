@@ -35,11 +35,11 @@ source install/setup.bash
 
 ## Usage
   ```bash
-  hector_record <args>
+  bag_recorder <args>
   ```
 Place all ROS arguments at the end of the command line.
   ```bash
-  hector_record <args> --ros-args -r __ns:=my_namespace
+  bag_recorder <args> --ros-args -r __ns:=my_namespace
   ```
 We support almost all ```ros2 bag record``` arguments as explained in the [official documentation](https://github.com/ros2/rosbag2?tab=readme-ov-file#record).
 In addition, there is:
@@ -51,17 +51,17 @@ In addition, there is:
 ### Examples
 - Record everything (all topics & services):  
   ```bash
-  hector_record --all
+  bag_recorder --all
   ```  
 
 - Record specific topics:  
   ```bash
-  hector_record --topics /tf /odom
+  bag_recorder --topics /tf /odom
   ```  
 
 - Load from YAML:  
   ```bash
-  hector_record --config /path/to/config.yaml
+  bag_recorder --config /path/to/config.yaml
   ```
 
 ### Config file
@@ -70,7 +70,7 @@ All arguments can be specified either via command line or in a config file.
 Example:
 ```yaml
 node_name: "my_node_name"     # defaults to 'hector_recorder'
-output: "/tmp/bags"       # will be normalized, timestamp subdir if directory
+output: "/tmp/bags"           # will be normalized, timestamp subdir if directory
 topics: 
  - "/tf" 
  - "/odom"
