@@ -1,19 +1,10 @@
 #!/usr/bin/env bash
 
-# -----------------------------------------------------------------------------
-# hector_recorder_completion.bash – wrapper and autocompletion for 'bag_recorder'
-# -----------------------------------------------------------------------------
-
-# -------------------------
-# Main command
-# -------------------------
 bag_recorder() {
     ros2 run hector_recorder record "$@"
 }
 
-# -------------------------
 # Autocompletion-function
-# -------------------------
 _bag_recorder_completion() {
     local cur prev opts
     COMPREPLY=()
@@ -129,7 +120,5 @@ _bag_recorder_completion() {
     return 0
 }
 
-# -------------------------
 # Autocomplete-registration
-# -------------------------
 complete -F _bag_recorder_completion bag_recorder

@@ -1,6 +1,6 @@
 # hector_recorder
 
-![hector_recorder showcase](media/showcase.gif)
+![hector_recorder showcase](media/teaser.gif)
 
 
 A terminal UI for recording ROS2 bags (strongly inspired by [rosbag_fancy](https://github.com/xqms/rosbag_fancy)).
@@ -86,3 +86,6 @@ See here for all available parameters and their default values:
 - ```-o some_dir``` creates ```some_dir``` (works with absolute/relative paths)
 - If you want to have timestamped bag files in a specified log dir (useful for automatic logging), you can append a slash:  
   ```-o some_dir/``` creates ```some_dir/rosbag_<stamp>```
+
+### TODOs
+- [ ] Add/test qos-profile-overrides-path
