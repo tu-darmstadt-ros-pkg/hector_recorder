@@ -1,6 +1,5 @@
 node_name: "hector_recorder"  
-output_dir: "/home/user/bags"
-#output_dir: "/path/to/output"      
+output: "/home/user/bags" 
 storage_id: "sqlite3"              
 #max_bag_size: 0           
 #max_bag_size_gb: 1.0               # alternative to max_bag_size; use either this or max_bag_size not both
