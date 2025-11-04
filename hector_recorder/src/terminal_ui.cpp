@@ -33,12 +33,16 @@ namespace
 // Innerwidth (without borders)
 inline int interior_width( WINDOW *win ) { return getmaxx( win ) - 2; }
 
-// Tablewidth from column widths + gaps (7 per gap) + trailing '---' (3)
+// Column gap: total columns added between two printed columns.
+constexpr int kColumnGap = 3;
+inline int sep_offset() { return ( kColumnGap / 2 ) + 1; }
+
+// Tablewidth from column widths + gaps (kColumnGap per gap) + trailing '---' (3)
 inline int compute_table_width( const std::vector<int> &widths, size_t ncols )
 {
   int sum = 0;
   for ( int w : widths ) sum += w;
-  int gaps = ( ncols > 0 ) ? static_cast<int>( ncols - 1 ) * 7 : 0;
+  int gaps = ( ncols > 0 ) ? static_cast<int>( ncols - 1 ) * kColumnGap : 0;
   int trailing = 3; // last '---' for last column
   return sum + gaps + trailing;
 }
@@ -54,6 +58,11 @@ inline std::string clip_with_ellipsis( const std::string &s, int width )
     return std::string( std::max( 0, width ), '.' );
   return s.substr( 0, width - 3 ) + "...";
 }
+
+// Global sort state (1-based column index). Default: sort by Size (column 5) desc
+std::atomic<int> g_sort_column{ 5 };
+std::atomic<bool> g_sort_desc{ true };
+
 } // namespace
 
 TerminalUI::TerminalUI( const CustomOptions &custom_options,
@@ -119,6 +128,10 @@ void TerminalUI::initializeUI()
   int table_height = height - general_info_height;
   tableWin_ = newwin( table_height, width, general_info_height, 0 );
 
+  // enable non-blocking input and function keys
+  nodelay( tableWin_, TRUE );
+  keypad( tableWin_, TRUE );
+
   scrollok( tableWin_, true );
 
   // Draw borders for all windows
@@ -157,6 +170,21 @@ void TerminalUI::updateUI()
 {
   std::lock_guard<std::mutex> lock( data_mutex_ );
 
+  // Handle user input for sorting
+  int ch = wgetch( tableWin_ );
+  if ( ch != ERR ) {
+    if ( ch >= '1' && ch <= '8' ) {
+      const int col = ch - '0';
+      const int prev = g_sort_column.load();
+      if ( prev != col ) {
+        g_sort_column.store( col );
+        g_sort_desc.store( ( col == 1 || col == 6 ) ? false : true );
+      } else {
+        g_sort_desc.store( !g_sort_desc.load() );
+      }
+    }
+  }
+
   if ( !recorder_ ) {
     werase( generalInfoWin_ );
     box( generalInfoWin_, 0, 0 );
@@ -190,10 +218,11 @@ void TerminalUI::updateGeneralInfo()
     lines.push_back( fmt::format( "Config Path: {}", config_path_ ) );
   }
   lines.push_back(
-      fmt::format( "Duration: {} s | Size: {} | Files: {} | Free Space: {}",
+      fmt::format( "Duration: {} s | Size: {} / {} | Files: {}",
                    static_cast<int>( recorder_->get_bagfile_duration().seconds() ),
-                   formatMemory( recorder_->get_bagfile_size() ), recorder_->get_files().size(),
-                   formatMemory( std::filesystem::space( storage_options_.uri ).available ) ) );
+                   formatMemory( recorder_->get_bagfile_size() ),
+                   formatMemory( std::filesystem::space( storage_options_.uri ).available ),
+                   recorder_->get_files().size() ) );
 
   // Calculate the required height based on the content
   int required_height = calculateRequiredLines( lines );
@@ -244,8 +273,8 @@ void TerminalUI::updateTable()
     // Sort Topics by bandwidth, name, and frequency
     sorted_topics_ = sortTopics( topics_info );
 
-    // Prepare headers and column widths
-    headers_ = { "Topic", "Msgs", "Freq", "Type", "Bandwidth", "Pub", "QoS", "Size" };
+    // Topic, Msg, Freq, Bandwidth, Size, Type, Pub, QoS
+    headers_ = { "Topic", "Msgs", "Freq", "Bandwidth", "Size", "Type", "Pub", "QoS" };
     column_widths_.resize( headers_.size(), 0 );
     for ( size_t i = 0; i < headers_.size(); ++i ) { column_widths_[i] = headers_[i].size(); }
 
@@ -263,16 +292,81 @@ TerminalUI::sortTopics( const std::unordered_map<std::string, TopicInformation> 
 {
   std::vector<std::pair<std::string, TopicInformation>> sorted_topics( topics_info.begin(),
                                                                        topics_info.end() );
-  // Sort the vector based on bandwidth (desc), name (asc), and frequency (desc)
-  std::sort( sorted_topics.begin(), sorted_topics.end(), []( const auto &a, const auto &b ) {
-    if ( a.second.bandwidth() != b.second.bandwidth() ) {
-      return a.second.bandwidth() > b.second.bandwidth();
-    }
-    if ( a.first != b.first ) {
-      return a.first < b.first;
-    }
-    return a.second.mean_frequency() > b.second.mean_frequency();
-  } );
+
+  // Capture current sort state once
+  int sort_col = g_sort_column.load(); // 1..8
+  bool sort_desc = g_sort_desc.load();
+
+  std::sort( sorted_topics.begin(), sorted_topics.end(),
+             [sort_col, sort_desc]( const auto &a, const auto &b ) {
+               const auto &A = a.second;
+               const auto &B = b.second;
+
+               auto cmp_str = [&]( const std::string &x, const std::string &y ) {
+                 if ( x == y )
+                   return 0;
+                 return ( x < y ) ? -1 : 1;
+               };
+               auto cmp_uint64 = [&]( uint64_t x, uint64_t y ) {
+                 if ( x == y )
+                   return 0;
+                 return ( x < y ) ? -1 : 1;
+               };
+               auto cmp_double = [&]( double x, double y ) {
+                 if ( x == y )
+                   return 0;
+                 return ( x < y ) ? -1 : 1;
+               };
+
+               int order = 0;
+               switch ( sort_col ) {
+               case 1: // Topic name
+                 order = cmp_str( a.first, b.first );
+                 break;
+               case 2: // Msgs (message_count)
+                 order = cmp_uint64( A.message_count(), B.message_count() );
+                 break;
+               case 3: // Freq
+                 order = cmp_double( A.mean_frequency(), B.mean_frequency() );
+                 break;
+               case 4: // Bandwidth
+                 order = cmp_double( A.bandwidth(), B.bandwidth() );
+                 break;
+               case 5: // Size (bytes)
+                 order = cmp_uint64( A.size(), B.size() );
+                 break;
+               case 6: // Type
+                 order = cmp_str( A.topic_type(), B.topic_type() );
+                 break;
+               case 7: // Pub (publisher_count)
+                 order = cmp_uint64( A.publisher_count(), B.publisher_count() );
+                 break;
+               case 8: // QoS (string)
+                 order = cmp_str( A.qos_reliability(), B.qos_reliability() );
+                 break;
+               default:
+                 // fallback: by size desc, name asc, freq desc
+                 if ( A.size() != B.size() )
+                   return A.size() > B.size();
+                 if ( a.first != b.first )
+                   return a.first < b.first;
+                 return A.mean_frequency() > B.mean_frequency();
+               }
+
+               if ( order == 0 ) {
+                 if ( A.size() != B.size() )
+                   return A.size() > B.size();
+                 if ( a.first != b.first )
+                   return a.first < b.first;
+                 return A.mean_frequency() > B.mean_frequency();
+               }
+
+               if ( sort_desc )
+                 return order > 0;
+               else
+                 return order < 0;
+             } );
+
   return sorted_topics;
 }
 
@@ -283,7 +377,7 @@ void TerminalUI::adjustColumnWidths()
   };
 
   size_t longest_topic_name = column_widths_[0];
-  size_t longest_topic_type = column_widths_[3];
+  size_t longest_topic_type = ( column_widths_.size() > 5 ) ? column_widths_[5] : 0;
 
   for ( const auto &topic : sorted_topics_ ) {
     const auto &info = topic.second;
@@ -300,21 +394,21 @@ void TerminalUI::adjustColumnWidths()
     // Update frequency
     updateColumnWidth( 2, static_cast<int>( rateToString( info.mean_frequency() ).size() ) );
 
+    // Update bandwidth
+    updateColumnWidth( 3, static_cast<int>( bandwidthToString( info.bandwidth() ).size() ) );
+
+    // Update size
+    updateColumnWidth( 4, static_cast<int>( formatMemory( info.size() ).size() ) );
+
     // Update topic type
     longest_topic_type = std::max( longest_topic_type, info.topic_type().size() );
-    updateColumnWidth( 3, static_cast<int>( info.topic_type().size() ), ui_topics_type_max_length_ );
-
-    // Update bandwidth
-    updateColumnWidth( 4, static_cast<int>( bandwidthToString( info.bandwidth() ).size() ) );
+    updateColumnWidth( 5, static_cast<int>( info.topic_type().size() ), ui_topics_type_max_length_ );
 
     // Update publisher count
-    updateColumnWidth( 5, static_cast<int>( std::to_string( info.publisher_count() ).size() ) );
+    updateColumnWidth( 6, static_cast<int>( std::to_string( info.publisher_count() ).size() ) );
 
     // Update QoS
-    updateColumnWidth( 6, static_cast<int>( info.qos_reliability().size() ) );
-
-    // Update memory size
-    updateColumnWidth( 7, static_cast<int>( formatMemory( info.size() ).size() ) );
+    updateColumnWidth( 7, static_cast<int>( info.qos_reliability().size() ) );
   }
 
   // Calculate total width
@@ -354,20 +448,20 @@ void TerminalUI::distributeRemainingWidth( size_t longest_topic_name, size_t lon
   };
 
   bool need_name = column_widths_[0] < static_cast<int>( longest_topic_name );
-  bool need_type = headers_.size() > 3 && column_widths_[3] < static_cast<int>( longest_topic_type );
+  bool need_type = headers_.size() > 5 && column_widths_[5] < static_cast<int>( longest_topic_type );
 
   if ( need_name && need_type ) {
     int give_name = remaining_width * 3 / 5;
     int used_name = growUpTo( 0, longest_topic_name, give_name, ui_topics_max_length_ );
     remaining_width -= used_name;
 
-    int used_type = growUpTo( 3, longest_topic_type, remaining_width, ui_topics_type_max_length_ );
+    int used_type = growUpTo( 5, longest_topic_type, remaining_width, ui_topics_type_max_length_ );
     remaining_width -= used_type;
   } else if ( need_name ) {
     int used = growUpTo( 0, longest_topic_name, remaining_width, ui_topics_max_length_ );
     remaining_width -= used;
   } else if ( need_type ) {
-    int used = growUpTo( 3, longest_topic_type, remaining_width, ui_topics_type_max_length_ );
+    int used = growUpTo( 5, longest_topic_type, remaining_width, ui_topics_type_max_length_ );
     remaining_width -= used;
   }
 
@@ -389,11 +483,25 @@ void TerminalUI::renderTable()
 void TerminalUI::renderHeaders()
 {
   for ( size_t i = 0, col = 1; i < headers_.size(); ++i ) {
-    mvwprintw( tableWin_, row_, col, "%-*s", column_widths_[i], headers_[i].c_str() );
+    std::string label = headers_[i];
+    int col_no = static_cast<int>( i ) + 1;
+    const std::string to_print = clip_with_ellipsis( label, column_widths_[i] );
+
+    // Draw header with green text and bold when it's the sort column
+    if ( g_sort_column.load() == col_no ) {
+      wattron( tableWin_, COLOR_PAIR( 1 ) | A_BOLD );
+      mvwprintw( tableWin_, row_, col, "%-*s", column_widths_[i], to_print.c_str() );
+      wattroff( tableWin_, COLOR_PAIR( 1 ) | A_BOLD );
+    } else {
+      wattron( tableWin_, COLOR_PAIR( 1 ) );
+      mvwprintw( tableWin_, row_, col, "%-*s", column_widths_[i], to_print.c_str() );
+      wattroff( tableWin_, COLOR_PAIR( 1 ) );
+    }
+
     col += column_widths_[i];
     if ( i < headers_.size() - 1 ) {
-      col += 7; // 3 spaces + '|' + 3 spaces
-      mvwaddch( tableWin_, row_, col - 4, '|' );
+      col += kColumnGap;
+      mvwaddch( tableWin_, row_, col - sep_offset(), '|' );
     }
   }
   row_++;
@@ -410,10 +518,10 @@ void TerminalUI::renderSeperatorLine()
   for ( size_t i = 0, col = 1; i < headers_.size(); ++i ) {
     col += column_widths_[i];
     if ( i < headers_.size() - 1 ) {
-      int plus_x = col + 3;
+      int plus_x = col + ( kColumnGap / 2 );
       if ( plus_x >= 1 && plus_x <= inner )
         mvwaddch( tableWin_, row_, plus_x, '+' );
-      col += 7;
+      col += kColumnGap;
     }
   }
 
@@ -425,36 +533,47 @@ void TerminalUI::renderTopicRow( const std::pair<std::string, TopicInformation> 
   const auto &info = topic.second;
   int col = 1;
 
-  // Highlight row if no publishers
+  // Row coloring (foreground text only):
+  // - red text if no publishers
+  // - yellow text if there are publishers but no messages received yet
+  int active_color_pair = 0;
   if ( info.publisher_count() == 0 ) {
-    wattron( tableWin_, COLOR_PAIR( 2 ) ); // Activate red color for unpublished topics
+    active_color_pair = 2; // red text
+  } else if ( info.publisher_count() > 0 && info.message_count() == 0 ) {
+    active_color_pair = 3; // yellow text
+  }
+  if ( active_color_pair != 0 ) {
+    wattron( tableWin_, COLOR_PAIR( active_color_pair ) );
   }
 
   // Populate table columns
+  // Topic, Msg, Freq, Bandwidth, Size, Type, Pub, QoS
   const std::vector<std::string> column_data = {
       clipString( topic.first, column_widths_[0] ),       // Topic name
       std::to_string( info.message_count() ),             // Message count
       rateToString( info.mean_frequency() ),              // Frequency
-      clipString( info.topic_type(), column_widths_[3] ), // Topic type
       bandwidthToString( info.bandwidth() ),              // Bandwidth
+      formatMemory( info.size() ),                        // Size
+      clipString( info.topic_type(), column_widths_[5] ), // Topic type
       std::to_string( info.publisher_count() ),           // Publisher count
-      info.qos_reliability(),                             // QoS
-      formatMemory( info.size() )                         // Memory size
+      info.qos_reliability()                              // QoS
   };
 
   for ( size_t i = 0; i < headers_.size(); ++i ) {
     mvwprintw( tableWin_, row_, col, "%-*s", column_widths_[i], column_data[i].c_str() );
-    col += column_widths_[i] + 7; // Move to next column
+
+    col += column_widths_[i];
     if ( i < headers_.size() - 1 ) {
-      mvwaddch( tableWin_, row_, col - 4, '|' ); // Add column separator
+      col += kColumnGap;
+      mvwaddch( tableWin_, row_, col - sep_offset(), '|' );
     }
   }
 
-  if ( info.publisher_count() == 0 ) {
-    wattroff( tableWin_, COLOR_PAIR( 2 ) ); // Deactivate red color
+  if ( active_color_pair != 0 ) {
+    wattroff( tableWin_, COLOR_PAIR( active_color_pair ) );
   }
 
-  row_++; // Move to next row
+  row_++;
 }
 
 void TerminalUI::publishRecorderStatus()

@@ -537,11 +537,11 @@ std::string reliability_to_string(
 {
   switch (reliability) {
     case rclcpp::ReliabilityPolicy::BestEffort:
-      return "Best Effort";
+      return "Best E.";
     case rclcpp::ReliabilityPolicy::Reliable:
-      return "Reliable";
+      return "Rel.";
     case rclcpp::ReliabilityPolicy::SystemDefault:
-      return "System Default";
+      return "Sys. Default";
     default:
       return "Unknown";
   }

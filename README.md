@@ -1,14 +1,15 @@
 # hector_recorder
 
-![hector_recorder showcase](media/teaser.gif)
+![hector_recorder showcase](media/teaser.webp)
 
 
 A terminal UI for recording ROS2 bags (strongly inspired by [rosbag_fancy](https://github.com/xqms/rosbag_fancy)).
 
 Some of its features:
-- Displays message count, topic type, frequency, bandwith, duration, disk size...
+- Sort by message count, topic type, frequency, bandwith, duration, disk size...
 - Adaptive display based on terminal window size
 - Same arguments as ```rosbag2``` ```(ros2 bag record)```
+- Colors indicate 'no msgs received' (yellow) and 'no publisher' (red)
 - Specify arguments per command line or YAML file
 - Publishes status topic (optional)
 
@@ -47,6 +48,8 @@ In addition, there is:
     --max-bag-size-gb   Specify the split size in GB instead of bytes
     --publish-status    If true, recorder stats will be published on a topic
     --config            Load all parameters from a YAML file (see below for more details)
+
+By pressing keys 1-8 you can sort the table by the respective column.
 
 ### Examples
 - Record everything (all topics & services):  
