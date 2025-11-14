@@ -1,7 +1,6 @@
 # hector_recorder
 
-![hector_recorder showcase](media/teaser.webp)
-
+![hector_recorder teaser](media/teaser.gif)
 
 A terminal UI for recording ROS2 bags (strongly inspired by [rosbag_fancy](https://github.com/xqms/rosbag_fancy)).
 
