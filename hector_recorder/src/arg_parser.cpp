@@ -151,8 +151,12 @@ void ArgParser::parseCommandLineArguments( int argc, char **argv, CustomOptions 
                  "Ignore topics without a subscription." )
       ->default_val( false );
 
-  // parser.add_option("--qos-profile-overrides-path", record_options.topic_qos_profile_overrides_path, "Path to a yaml file defining overrides of the QoS profile for specific topics.")
-  //     ->default_val("");  // TODO
+  parser
+      .add_option(
+          "--qos-profile-overrides-path", custom_options.qos_profile_overrides_path,
+          "Path to a yaml file defining overrides of the QoS profile for specific topics." )
+      ->default_val( "" )
+      ->check( CLI::ExistingFile );
 
   // Core Config
 
@@ -303,6 +307,11 @@ void ArgParser::parseCommandLineArguments( int argc, char **argv, CustomOptions 
   final_output_dir = hector_recorder::resolveOutputDirectory( output_dir );
   // custom_options.resolved_output_dir = final_output_dir;
   storage_options.uri = final_output_dir;
+
+  if ( !custom_options.qos_profile_overrides_path.empty() ) {
+    record_options.topic_qos_profile_overrides =
+        hector_recorder::load_qos_overrides_from_file( custom_options.qos_profile_overrides_path );
+  }
 
   if ( all_flag ) {
     record_options.all_topics = true;

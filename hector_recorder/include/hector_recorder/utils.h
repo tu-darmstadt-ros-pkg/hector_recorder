@@ -9,11 +9,13 @@
 #include <fmt/chrono.h>
 #include <fmt/core.h>
 #include <limits.h>
+#include <rclcpp/qos.hpp>
 #include <regex>
 #include <stdexcept>
 #include <string>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <unordered_map>
 
 namespace fs = std::filesystem;
 
@@ -22,6 +24,7 @@ namespace hector_recorder
 struct CustomOptions {
   std::string node_name;
   std::string config_path;
+  std::string qos_profile_overrides_path;
   std::string status_topic = "recorder_status";
   bool publish_status;
 };
@@ -31,6 +34,9 @@ static std::string make_timestamped_folder_name();
 static bool is_rosbag_dir( const fs::path &dir );
 static fs::path find_rosbag_ancestor( const fs::path &dir );
 std::string resolveOutputDirectory( const std::string &output_dir );
+
+std::unordered_map<std::string, rclcpp::QoS> convert_yaml_to_qos_overrides( const YAML::Node &root );
+std::unordered_map<std::string, rclcpp::QoS> load_qos_overrides_from_file( const std::string &path );
 
 std::string formatMemory( uint64_t bytes );
 std::string rateToString( double rate );

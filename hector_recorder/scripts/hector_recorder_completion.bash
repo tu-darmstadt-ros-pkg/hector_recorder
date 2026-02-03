@@ -38,6 +38,7 @@ _bag_recorder_completion() {
         -p --polling-interval
         --publish-status
         --ignore-leaf-topics
+        --qos-profile-overrides-path
         -f --serialization-format
         -b --max-bag-size
         --gb --max-bag-size-gb
@@ -88,7 +89,7 @@ _bag_recorder_completion() {
             COMPREPLY=( $(compgen -f -- "$cur") )
             return 0
             ;;
-        -c|--config)
+        -c|--config|--qos-profile-overrides-path)
             COMPREPLY=( $(compgen -f -- "$cur" | xargs -I {} bash -c '[[ -f "{}" ]] && echo "{}"') )
             return 0
             ;;

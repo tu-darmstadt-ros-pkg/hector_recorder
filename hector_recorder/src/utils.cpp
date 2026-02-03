@@ -126,6 +126,157 @@ std::string resolveOutputDirectory( const std::string &output_dir )
   return target.string();
 }
 
+static rmw_time_t parse_duration( const YAML::Node &time_dict, const std::string &key_name )
+{
+  if ( !time_dict || !time_dict.IsMap() ) {
+    throw std::runtime_error( "Key '" + key_name + "' must be a map with fields {sec, nsec}." );
+  }
+  if ( !time_dict["sec"] || !time_dict["nsec"] ) {
+    throw std::runtime_error( "Key '" + key_name + "' must include both 'sec' and 'nsec'." );
+  }
+
+  const int64_t sec = time_dict["sec"].as<int64_t>();
+  const int64_t nsec = time_dict["nsec"].as<int64_t>();
+
+  if ( sec < 0 || ( sec == 0 && nsec < 0 ) ) {
+    throw std::runtime_error( "Time duration may not be a negative value for key '" + key_name +
+                              "'." );
+  }
+
+  rmw_time_t t{};
+  t.sec = static_cast<int32_t>( sec );
+  t.nsec = static_cast<uint32_t>( nsec );
+  return t;
+}
+
+static rmw_qos_history_policy_t parse_history( const std::string &s )
+{
+  if ( s == "keep_last" )
+    return RMW_QOS_POLICY_HISTORY_KEEP_LAST;
+  if ( s == "keep_all" )
+    return RMW_QOS_POLICY_HISTORY_KEEP_ALL;
+  if ( s == "system_default" )
+    return RMW_QOS_POLICY_HISTORY_SYSTEM_DEFAULT;
+  throw std::runtime_error( "Invalid history policy: '" + s + "'" );
+}
+
+static rmw_qos_reliability_policy_t parse_reliability( const std::string &s )
+{
+  if ( s == "reliable" )
+    return RMW_QOS_POLICY_RELIABILITY_RELIABLE;
+  if ( s == "best_effort" )
+    return RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT;
+  if ( s == "system_default" )
+    return RMW_QOS_POLICY_RELIABILITY_SYSTEM_DEFAULT;
+  throw std::runtime_error( "Invalid reliability policy: '" + s + "'" );
+}
+
+static rmw_qos_durability_policy_t parse_durability( const std::string &s )
+{
+  if ( s == "volatile" )
+    return RMW_QOS_POLICY_DURABILITY_VOLATILE;
+  if ( s == "transient_local" )
+    return RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL;
+  if ( s == "system_default" )
+    return RMW_QOS_POLICY_DURABILITY_SYSTEM_DEFAULT;
+  throw std::runtime_error( "Invalid durability policy: '" + s + "'" );
+}
+
+static rmw_qos_liveliness_policy_t parse_liveliness( const std::string &s )
+{
+  if ( s == "automatic" )
+    return RMW_QOS_POLICY_LIVELINESS_AUTOMATIC;
+  if ( s == "manual_by_topic" )
+    return RMW_QOS_POLICY_LIVELINESS_MANUAL_BY_TOPIC;
+  if ( s == "system_default" )
+    return RMW_QOS_POLICY_LIVELINESS_SYSTEM_DEFAULT;
+  throw std::runtime_error( "Invalid liveliness policy: '" + s + "'" );
+}
+
+static rclcpp::QoS interpret_node_as_qos( const YAML::Node &profile_node )
+{
+  if ( !profile_node || !profile_node.IsMap() ) {
+    throw std::runtime_error( "QoS profile must be a map (topic -> {policies...})." );
+  }
+
+  rmw_qos_profile_t rmw = rmw_qos_profile_default;
+
+  for ( const auto &kv : profile_node ) {
+    const std::string key = kv.first.as<std::string>();
+    const YAML::Node &val = kv.second;
+
+    if ( key == "deadline" ) {
+      rmw.deadline = parse_duration( val, key );
+      continue;
+    }
+    if ( key == "lifespan" ) {
+      rmw.lifespan = parse_duration( val, key );
+      continue;
+    }
+    if ( key == "liveliness_lease_duration" ) {
+      rmw.liveliness_lease_duration = parse_duration( val, key );
+      continue;
+    }
+
+    if ( key == "history" ) {
+      rmw.history = parse_history( val.as<std::string>() );
+      continue;
+    }
+    if ( key == "reliability" ) {
+      rmw.reliability = parse_reliability( val.as<std::string>() );
+      continue;
+    }
+    if ( key == "durability" ) {
+      rmw.durability = parse_durability( val.as<std::string>() );
+      continue;
+    }
+    if ( key == "liveliness" ) {
+      rmw.liveliness = parse_liveliness( val.as<std::string>() );
+      continue;
+    }
+
+    if ( key == "depth" ) {
+      const int depth = val.as<int>();
+      if ( depth < 0 ) {
+        throw std::runtime_error( "'depth' may not be a negative value." );
+      }
+      rmw.depth = static_cast<size_t>( depth );
+      continue;
+    }
+    if ( key == "avoid_ros_namespace_conventions" ) {
+      rmw.avoid_ros_namespace_conventions = val.as<bool>();
+      continue;
+    }
+
+    throw std::runtime_error( "Unexpected key '" + key + "' for QoS profile." );
+  }
+
+  rclcpp::QoSInitialization init( rmw.history, rmw.depth );
+  return rclcpp::QoS( init, rmw );
+}
+
+std::unordered_map<std::string, rclcpp::QoS> convert_yaml_to_qos_overrides( const YAML::Node &root )
+{
+  if ( !root || !root.IsMap() ) {
+    throw std::runtime_error( "QoS override YAML must be a map: <topic> -> <qos profile map>." );
+  }
+
+  std::unordered_map<std::string, rclcpp::QoS> out;
+  for ( const auto &entry : root ) {
+    const std::string topic = entry.first.as<std::string>();
+    const YAML::Node &profile_node = entry.second;
+
+    out.emplace( topic, interpret_node_as_qos( profile_node ) );
+  }
+  return out;
+}
+
+std::unordered_map<std::string, rclcpp::QoS> load_qos_overrides_from_file( const std::string &path )
+{
+  YAML::Node root = YAML::LoadFile( path );
+  return convert_yaml_to_qos_overrides( root );
+}
+
 /**
  * @brief Formats memory size in human-readable units (B, KiB, MiB, etc.).
  * @param bytes The memory size in bytes.
@@ -329,66 +480,9 @@ bool parseYamlConfig( CustomOptions &custom_options, rosbag2_transport::RecordOp
     } else {
       record_options.compression_threads_priority = 0;
     }
-    if ( config["topic_qos_profile_overrides"] ) {
-      // TODO: Implement topic_qos_profile_overrides parsing
-      /*
-      record_options.topic_qos_profile_overrides.clear();
-
-      // Parse the QoS overrides as a map
-      auto qos_overrides = config["topic_qos_profile_overrides"].as<std::map<std::string, YAML::Node>>();
-
-      for (const auto &pair : qos_overrides)
-      {
-          const std::string &topic_name = pair.first;
-          const YAML::Node &qos_node = pair.second;
-
-          // Default QoSInitialization
-          rclcpp::QoSInitialization qos_init = rclcpp::QoSInitialization::from_rmw(rmw_qos_profile_default);
-          rmw_qos_profile_t rmw_qos = rmw_qos_profile_default;
-
-          // Parse QoS settings
-          if (qos_node["history_depth"])
-          {
-              rmw_qos.depth = qos_node["history_depth"].as<size_t>();
-          }
-          if (qos_node["reliability"])
-          {
-              std::string reliability = qos_node["reliability"].as<std::string>();
-              if (reliability == "reliable")
-              {
-                  rmw_qos.reliability = RMW_QOS_POLICY_RELIABILITY_RELIABLE;
-              }
-              else if (reliability == "best_effort")
-              {
-                  rmw_qos.reliability = RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT;
-              }
-              else
-              {
-                  throw std::runtime_error("Invalid reliability setting: " + reliability);
-              }
-          }
-          if (qos_node["durability"])
-          {
-              std::string durability = qos_node["durability"].as<std::string>();
-              if (durability == "volatile")
-              {
-                  rmw_qos.durability = RMW_QOS_POLICY_DURABILITY_VOLATILE;
-              }
-              else if (durability == "transient_local")
-              {
-                  rmw_qos.durability = RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL;
-              }
-              else
-              {
-                  throw std::runtime_error("Invalid durability setting: " + durability);
-              }
-          }
-
-          // Create QoS profile and add it to the map
-          rclcpp::QoS qos_profile(qos_init, rmw_qos);
-          record_options.topic_qos_profile_overrides[topic_name] = qos_profile;
-      }
-      */
+    if ( config["topic_qos_profile_overrides_path"] ) {
+      record_options.topic_qos_profile_overrides = hector_recorder::load_qos_overrides_from_file(
+          config["topic_qos_profile_overrides_path"].as<std::string>() );
     }
     if ( config["include_hidden_topics"] ) {
       record_options.include_hidden_topics = config["include_hidden_topics"].as<bool>();
