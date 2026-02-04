@@ -90,7 +90,7 @@ See here for all available parameters and their default values:
   ```-o some_dir/``` creates ```some_dir/rosbag_<stamp>```
 
 ### TODOs
-- [ ] Add/test qos-profile-overrides-path
+- [ ] Test qos-profile-overrides-path
 
 
 #### Acknowledgement
