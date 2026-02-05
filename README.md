@@ -89,10 +89,6 @@ See here for all available parameters and their default values:
 - If you want to have timestamped bag files in a specified log dir (useful for automatic logging), you can append a slash:  
   ```-o some_dir/``` creates ```some_dir/rosbag_<stamp>```
 
-### TODOs
-- [ ] Test qos-profile-overrides-path
-
-
 #### Acknowledgement
 This project includes components from:
 - ROS 2 [rosbag2](https://github.com/ros2/rosbag2)
