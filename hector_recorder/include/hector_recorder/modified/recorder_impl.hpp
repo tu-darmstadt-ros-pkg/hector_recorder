@@ -173,8 +173,9 @@ private:
 
   // Topic metadata
   std::unordered_map<std::string, TopicInformation> topics_info_;
+  mutable std::recursive_mutex topics_info_mutex_;
   rclcpp::Time first_stamp_;
-  bool first_msg_received_ = false;
+  std::atomic<bool> first_msg_received_ = false;
   std::vector<std::string> files_;
 };
 

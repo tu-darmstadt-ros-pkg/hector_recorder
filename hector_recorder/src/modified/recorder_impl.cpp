@@ -143,8 +143,11 @@ void RecorderImpl::record()
 
   // Insert all requested topics into topics_info_ to ensure they are tracked
   auto unknown_topics = get_unknown_topics();
-  for (const auto & t : unknown_topics) {
-    topics_info_[t];
+  {
+    std::lock_guard<std::recursive_mutex> lock(topics_info_mutex_);
+    for (const auto & t : unknown_topics) {
+      topics_info_[t];
+    }
   }
   if (!record_options_.is_discovery_disabled) {
     start_discovery();
@@ -345,7 +348,10 @@ void RecorderImpl::subscribe_topic(const rosbag2_storage::TopicMetadata & topic)
   auto subscription = create_subscription(topic.name, topic.type, subscription_qos);
   if (subscription) {
     subscriptions_.insert({topic.name, subscription});
-    topics_info_[topic.name];
+    {
+      std::lock_guard<std::recursive_mutex> lock(topics_info_mutex_);
+      topics_info_[topic.name];
+    }
     RCLCPP_INFO_STREAM(
       node->get_logger(),
       "Subscribed to topic '" << topic.name << "'");
@@ -414,14 +420,16 @@ RecorderImpl::create_subscription(
 void RecorderImpl::update_topic_statistics(
   const std::string & topic_name, std::chrono::nanoseconds stamp, int size)
 {
-  if (!first_msg_received_) {                        
+  std::lock_guard<std::recursive_mutex> lock(topics_info_mutex_);
+  if (!first_msg_received_.load()) {
     first_stamp_ = node->now();
-    first_msg_received_ = true;
+    first_msg_received_.store(true);
   }
   topics_info_[topic_name].update_statistics(stamp, size);
 }
 
 void RecorderImpl::update_topic_publisher_info() {
+  std::lock_guard<std::recursive_mutex> lock(topics_info_mutex_);
   for (auto &topic_info : topics_info_) {
     const auto &topic_name = topic_info.first;
     auto &info = topic_info.second;
@@ -430,7 +438,7 @@ void RecorderImpl::update_topic_publisher_info() {
       std::string topic_type = endpoint_infos[0].topic_type();
       int publisher_count = endpoint_infos.size();
       std::string qos = reliability_to_string(
-        endpoint_infos[0].qos_profile().reliability());      
+        endpoint_infos[0].qos_profile().reliability());
       info.update_publisher_info(topic_type, publisher_count, qos);
     } else {
       info.update_publisher_info("Unknown", 0, "Unknown");
@@ -449,22 +457,23 @@ std::vector<rclcpp::QoS> RecorderImpl::offered_qos_profiles_for_topic(
 }
 
 const std::unordered_map<std::string, TopicInformation>& RecorderImpl::get_topics_info() {
-    if (record_options_.is_discovery_disabled) {
-        update_topic_publisher_info();
-    }
+    std::lock_guard<std::recursive_mutex> lock(topics_info_mutex_);
+    update_topic_publisher_info();
     return topics_info_;
 }
 
 const rclcpp::Duration RecorderImpl::get_bagfile_duration() const
 {
-  if (!first_msg_received_) {
+  if (!first_msg_received_.load()) {
     return rclcpp::Duration(0, 0);
   }
+  std::lock_guard<std::recursive_mutex> lock(topics_info_mutex_);
   return rclcpp::Duration(node->now() - first_stamp_);
 }
 
 const uint64_t RecorderImpl::get_bagfile_size() const
 {
+  std::lock_guard<std::recursive_mutex> lock(topics_info_mutex_);
   size_t total_size = 0;
   for (const auto & topic_info : topics_info_) {
     total_size += topic_info.second.size();
