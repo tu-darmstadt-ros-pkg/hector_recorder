@@ -57,4 +57,12 @@ rmw_serialization_format: "cdr"
 #use_sim_time: false
 #disable_keyboard_controls: false
 #publish_status: true
-#publish_status_topic: "recorder_status"  
+#publish_status_topic: "recorder_status"
+#topic_throttle:                     # Per-topic throttling (frequency or bandwidth)
+  #"/camera/image_raw":
+  #  type: "messages"                # Throttle type: "messages" (frequency) or "bytes" (bandwidth)
+  #  msgs_per_sec: 5.0               # Max messages per second (only for type: "messages")
+  #"/pointcloud":
+  #  type: "bytes"
+  #  bytes_per_sec: 1048576          # Max bytes per second (only for type: "bytes"), e.g. 1 MB/s
+  #  window: 1.0                     # Sliding window in seconds (default: 1.0)  

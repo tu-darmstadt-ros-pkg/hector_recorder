@@ -5,6 +5,7 @@
 A terminal UI for recording ROS2 bags (strongly inspired by [rosbag_fancy](https://github.com/xqms/rosbag_fancy)).
 
 Some of its features:
+- Per-topic throttling by frequency or bandwidth (via config)
 - Sort by message count, topic type, frequency, bandwith, duration, disk size...
 - Adaptive display based on terminal window size
 - Same arguments as ```rosbag2``` ```(ros2 bag record)```
@@ -78,6 +79,10 @@ topics:
  - "/odom"
 max_bag_duration: 60          # split the bag at 60s
 publish_status: true          # publish hector_recorder_msgs status
+topic_throttle:               # throttle a topic by rate or bandwidth
+  "/tf":
+    type: "messages"
+    msgs_per_sec: 10.0
 ```
 
 See here for all available parameters and their default values:
@@ -91,5 +96,6 @@ See here for all available parameters and their default values:
 
 #### Acknowledgement
 This project includes components from:
-- ROS 2 [rosbag2](https://github.com/ros2/rosbag2)
+- [rosbag2](https://github.com/ros2/rosbag2)
+- [topic_tools](https://github.com/ros-tooling/topic_tools)
 - [CLI11](https://github.com/CLIUtils/CLI11) by Henry Schreiner (BSD-3-Clause)

@@ -68,6 +68,7 @@ private:
   rclcpp::TimerBase::SharedPtr status_pub_timer_;
   std::string config_path_;
   bool publish_status_;
+  ThrottleConfigMap throttle_configs_;
 
   rclcpp::Publisher<hector_recorder_msgs::msg::RecorderStatus>::SharedPtr status_pub_;
 

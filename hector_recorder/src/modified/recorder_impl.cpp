@@ -12,14 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Changelog Jonathan Lichtenfeld 12.6.2024:
+// Changelog Jonathan Lichtenfeld 
+// 12.6.2024:
 // - Extract RecorderImpl from rosbag2_transport/recorder.cpp to its own file
 // - Add get_topics_names_to_info() 
 // - Add get_bagfile_duration()
+// 25.02.2026: 
+// - Add topic throttle logic
 
 
 #include "hector_recorder/modified/recorder_impl.hpp"
 #include "rosbag2_cpp/writers/sequential_writer.hpp"
+
+#include <numeric>
+#include <rclcpp/rate.hpp>
 
 namespace hector_recorder
 {
@@ -28,11 +34,13 @@ RecorderImpl::RecorderImpl(
   rclcpp::Node * owner,
   std::shared_ptr<rosbag2_cpp::Writer> writer,
   const rosbag2_storage::StorageOptions & storage_options,
-  const rosbag2_transport::RecordOptions & record_options)
+  const rosbag2_transport::RecordOptions & record_options,
+  const ThrottleConfigMap & throttle_configs)
 : writer_(std::move(writer)),
   storage_options_(storage_options),
   record_options_(record_options),
-  node(owner)
+  node(owner),
+  throttle_configs_(throttle_configs)
 {
   if (record_options_.use_sim_time && record_options_.is_discovery_disabled) {
     throw std::runtime_error(
@@ -376,6 +384,7 @@ RecorderImpl::create_subscription(
       [this, topic_name, topic_type](std::shared_ptr<const rclcpp::SerializedMessage> message,
       const rclcpp::MessageInfo &) {
         if (!paused_.load()) {
+          if (!throttle_pass(topic_name, message->size())) { return; }
           update_topic_statistics(topic_name, std::chrono::nanoseconds(mi.get_rmw_message_info().received_timestamp), message->size());
           writer_->write(
             std::move(message), topic_name, topic_type, node->now().nanoseconds(),
@@ -393,6 +402,7 @@ RecorderImpl::create_subscription(
       [this, topic_name, topic_type](std::shared_ptr<const rclcpp::SerializedMessage> message,
       const rclcpp::MessageInfo & mi) {
         if (!paused_.load()) {
+            if (!throttle_pass(topic_name, message->size())) { return; }
             update_topic_statistics(topic_name, std::chrono::nanoseconds(mi.get_rmw_message_info().received_timestamp), message->size());
             writer_->write(
             std::move(message), topic_name, topic_type, node->now().nanoseconds(),
@@ -407,6 +417,7 @@ RecorderImpl::create_subscription(
       [this, topic_name, topic_type](std::shared_ptr<const rclcpp::SerializedMessage> message,
       const rclcpp::MessageInfo & mi) {
         if (!paused_.load()) {
+          if (!throttle_pass(topic_name, message->size())) { return; }
           update_topic_statistics(topic_name, std::chrono::nanoseconds(mi.get_rmw_message_info().received_timestamp), message->size());
           writer_->write(
             std::move(message), topic_name, topic_type,
@@ -426,6 +437,59 @@ void RecorderImpl::update_topic_statistics(
     first_msg_received_.store(true);
   }
   topics_info_[topic_name].update_statistics(stamp, size);
+}
+
+bool RecorderImpl::throttle_pass(const std::string & topic_name, size_t msg_size)
+{
+  auto config_it = throttle_configs_.find(topic_name);
+  if (config_it == throttle_configs_.end()) {
+    return true;  // No throttle configured for this topic
+  }
+
+  const auto & config = config_it->second;
+  std::lock_guard<std::mutex> lock(throttle_mutex_);
+  auto & state = throttle_states_[topic_name];
+  const auto now = rclcpp::Clock{}.now();
+
+  if (config.type == ThrottleConfig::MESSAGES) {
+    const auto period = rclcpp::Rate(config.msgs_per_sec).period();
+    if (state.last_time > now) {
+      // Clock jump backward, reset
+      state.last_time = now;
+      return true;
+    }
+    if ((now - state.last_time).nanoseconds() >= period.count()) {
+      state.last_time = now;
+      return true;
+    }
+    return false;
+  } else if (config.type == ThrottleConfig::BYTES) {
+    const double now_sec = now.seconds();
+
+    // Prune entries outside the sliding window
+    while (!state.sent_deque.empty() &&
+           state.sent_deque.front().first < now_sec - config.window)
+    {
+      state.sent_deque.pop_front();
+    }
+
+    // Sum bytes in the current window
+    const int64_t bytes = std::accumulate(
+      state.sent_deque.begin(),
+      state.sent_deque.end(),
+      int64_t{0},
+      [](int64_t a, const auto & b) {
+        return a + b.second;
+      });
+
+    if (bytes < config.bytes_per_sec) {
+      state.sent_deque.emplace_back(now_sec, msg_size);
+      return true;
+    }
+    return false;  // Bandwidth budget exceeded
+  }
+
+  return true;
 }
 
 void RecorderImpl::update_topic_publisher_info() {

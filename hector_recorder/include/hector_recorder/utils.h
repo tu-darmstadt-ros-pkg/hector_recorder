@@ -2,6 +2,8 @@
 
 #include "rosbag2_transport/recorder.hpp"
 
+#include "hector_recorder/throttle_config.hpp"
+
 #include <chrono>
 #include <cstdlib>
 #include <ctime>
@@ -27,6 +29,7 @@ struct CustomOptions {
   std::string qos_profile_overrides_path;
   std::string status_topic = "recorder_status";
   bool publish_status;
+  ThrottleConfigMap topic_throttle;
 };
 
 std::string getAbsolutePath( const std::string &path );
