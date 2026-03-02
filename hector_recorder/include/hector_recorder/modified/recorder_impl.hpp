@@ -12,9 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Changelog Jonathan Lichtenfeld 12.6.2024:
+// Changelog Jonathan Lichtenfeld 
+// 12.6.2024:
 // - Extract RecorderImpl from rosbag2_transport/recorder.cpp to its own file
-// - Add get_topics_info(), get_bagfile_duration()
+// - Add get_topics_names_to_info() 
+// - Add get_bagfile_duration()
+// 25.02.2026: 
+// - Add topic throttle logic
 
 
 #include <algorithm>
@@ -54,6 +58,7 @@
 #include "rosbag2_transport/topic_filter.hpp"
 #include "rosbag2_transport/visibility_control.hpp"
 
+#include "hector_recorder/throttle_config.hpp"
 #include "hector_recorder/topic_information.hpp"
 
 
@@ -67,7 +72,8 @@ public:
     rclcpp::Node * owner,
     std::shared_ptr<rosbag2_cpp::Writer> writer,
     const rosbag2_storage::StorageOptions & storage_options,
-    const rosbag2_transport::RecordOptions & record_options);
+    const rosbag2_transport::RecordOptions & record_options,
+    const ThrottleConfigMap & throttle_configs = {});
 
   ~RecorderImpl();
 
@@ -129,6 +135,9 @@ private:
 
   void update_topic_statistics(const std::string & topic_name, std::chrono::nanoseconds stamp, int size);
 
+  /// Check if a message should be dropped due to throttle config. Returns true if message should pass.
+  bool throttle_pass(const std::string & topic_name, size_t msg_size);
+
   /**
    * Find the QoS profile that should be used for subscribing.
    *
@@ -177,6 +186,11 @@ private:
   rclcpp::Time first_stamp_;
   std::atomic<bool> first_msg_received_ = false;
   std::vector<std::string> files_;
+
+  // Throttle
+  ThrottleConfigMap throttle_configs_;
+  std::unordered_map<std::string, ThrottleState> throttle_states_;
+  std::mutex throttle_mutex_;
 };
 
 std::string type_hash_to_string(const rosidl_type_hash_t & type_hash);

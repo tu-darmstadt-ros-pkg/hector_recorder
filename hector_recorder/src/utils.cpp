@@ -521,6 +521,50 @@ bool parseYamlConfig( CustomOptions &custom_options, rosbag2_transport::RecordOp
       custom_options.status_topic = config["publish_status_topic"].as<std::string>();
     }
 
+    // Parse topic throttle configuration
+    if ( config["topic_throttle"] ) {
+      const YAML::Node &throttle_node = config["topic_throttle"];
+      if ( !throttle_node.IsMap() ) {
+        throw std::runtime_error( "'topic_throttle' must be a map: <topic> -> {type, ...}" );
+      }
+      for ( const auto &entry : throttle_node ) {
+        const std::string topic = entry.first.as<std::string>();
+        const YAML::Node &cfg = entry.second;
+        ThrottleConfig tc;
+
+        std::string type_str = cfg["type"].as<std::string>( "messages" );
+        if ( type_str == "messages" ) {
+          tc.type = ThrottleConfig::MESSAGES;
+          if ( !cfg["msgs_per_sec"] ) {
+            throw std::runtime_error( "topic_throttle: '" + topic +
+                                      "' has type 'messages' but no 'msgs_per_sec'." );
+          }
+          tc.msgs_per_sec = cfg["msgs_per_sec"].as<double>();
+          if ( tc.msgs_per_sec <= 0.0 ) {
+            throw std::runtime_error( "topic_throttle: '" + topic + "' msgs_per_sec must be > 0." );
+          }
+        } else if ( type_str == "bytes" ) {
+          tc.type = ThrottleConfig::BYTES;
+          if ( !cfg["bytes_per_sec"] ) {
+            throw std::runtime_error( "topic_throttle: '" + topic +
+                                      "' has type 'bytes' but no 'bytes_per_sec'." );
+          }
+          tc.bytes_per_sec = cfg["bytes_per_sec"].as<int64_t>();
+          if ( tc.bytes_per_sec <= 0 ) {
+            throw std::runtime_error( "topic_throttle: '" + topic + "' bytes_per_sec must be > 0." );
+          }
+          tc.window = cfg["window"].as<double>( 1.0 );
+          if ( tc.window <= 0.0 ) {
+            throw std::runtime_error( "topic_throttle: '" + topic + "' window must be > 0." );
+          }
+        } else {
+          throw std::runtime_error( "topic_throttle: '" + topic + "' has unknown type '" +
+                                    type_str + "'. Expected 'messages' or 'bytes'." );
+        }
+        custom_options.topic_throttle[topic] = tc;
+      }
+    }
+
     if ( record_options.rmw_serialization_format.empty() ) {
       record_options.rmw_serialization_format =
           rmw_get_serialization_format(); // Default to the current RMW serialization format

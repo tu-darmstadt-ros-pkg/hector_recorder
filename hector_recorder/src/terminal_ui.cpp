@@ -69,7 +69,8 @@ TerminalUI::TerminalUI( const CustomOptions &custom_options,
                         const rosbag2_storage::StorageOptions &storage_options,
                         const rosbag2_transport::RecordOptions &record_options )
     : Node( custom_options.node_name ), config_path_( custom_options.config_path ),
-      publish_status_( custom_options.publish_status )
+      publish_status_( custom_options.publish_status ),
+      throttle_configs_( custom_options.topic_throttle )
 {
   storage_options_ = storage_options;
   record_options_ = record_options;
@@ -101,7 +102,8 @@ void TerminalUI::initializeRecorder()
   cbreak();
   auto writer_impl = std::make_unique<rosbag2_cpp::writers::SequentialWriter>();
   auto writer = std::make_shared<rosbag2_cpp::Writer>( std::move( writer_impl ) );
-  recorder_ = std::make_unique<RecorderImpl>( this, writer, storage_options_, record_options_ );
+  recorder_ = std::make_unique<RecorderImpl>( this, writer, storage_options_, record_options_,
+                                              throttle_configs_ );
 }
 
 void TerminalUI::initializeUI()
@@ -117,6 +119,7 @@ void TerminalUI::initializeUI()
   init_pair( 1, COLOR_GREEN, -1 );
   init_pair( 2, COLOR_RED, -1 );
   init_pair( 3, COLOR_YELLOW, -1 );
+  init_pair( 4, COLOR_CYAN, -1 ); // throttled topics
 
   int height, width;
   getmaxyx( stdscr, height, width );
@@ -559,8 +562,28 @@ void TerminalUI::renderTopicRow( const std::pair<std::string, TopicInformation> 
       info.qos_reliability()                              // QoS
   };
 
+  // Check if this topic is throttled and which column to highlight
+  bool has_throttle = throttle_configs_.count( topic.first ) > 0;
+
   for ( size_t i = 0; i < headers_.size(); ++i ) {
+    // Highlight only the relevant column: Freq (2) for MESSAGES, Bandwidth (3) for BYTES
+    bool throttle_highlight =
+        has_throttle &&
+        ( ( throttle_configs_.at( topic.first ).type == ThrottleConfig::MESSAGES && i == 2 ) ||
+          ( throttle_configs_.at( topic.first ).type == ThrottleConfig::BYTES && i == 3 ) );
+    if ( throttle_highlight ) {
+      wattron( tableWin_, COLOR_PAIR( 4 ) );
+    }
+
     mvwprintw( tableWin_, row_, col, "%-*s", column_widths_[i], column_data[i].c_str() );
+
+    if ( throttle_highlight ) {
+      wattroff( tableWin_, COLOR_PAIR( 4 ) );
+      // Re-apply row color if active
+      if ( active_color_pair != 0 ) {
+        wattron( tableWin_, COLOR_PAIR( active_color_pair ) );
+      }
+    }
 
     col += column_widths_[i];
     if ( i < headers_.size() - 1 ) {
