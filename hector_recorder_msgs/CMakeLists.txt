@@ -9,17 +9,26 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(builtin_interfaces REQUIRED)
 
-rosidl_generate_interfaces(${PROJECT_NAME}  
+rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/RecorderStatus.msg"
   "msg/TopicInfo.msg"
-  DEPENDENCIES std_msgs)
+  "srv/StartRecording.srv"
+  "srv/StopRecording.srv"
+  "srv/PauseRecording.srv"
+  "srv/ResumeRecording.srv"
+  "srv/SplitBag.srv"
+  "srv/ApplyConfig.srv"
+  "srv/SaveConfig.srv"
+  "srv/GetAvailableTopics.srv"
+  DEPENDENCIES std_msgs builtin_interfaces)
 
 ament_export_dependencies(rosidl_default_runtime)
 
 # Ensure interfaces are installed
 install(
-  DIRECTORY msg
+  DIRECTORY msg srv
   DESTINATION share/${PROJECT_NAME}
 )
 

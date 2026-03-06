@@ -39,6 +39,9 @@ int main( int argc, char **argv )
     return 0; // Exit if no valid recording options are provided
   }
 
+  // Resolve output directory now that all config sources have been processed
+  storage_options.uri = resolveOutputDirectory( storage_options.uri );
+
   // Ensure that topics and services start with a slash
   ensureLeadingSlash( record_options.topics );
   ensureLeadingSlash( record_options.services );

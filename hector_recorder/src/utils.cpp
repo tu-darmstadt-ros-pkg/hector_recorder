@@ -1,5 +1,9 @@
 #include "hector_recorder/utils.h"
+#include "hector_recorder/modified/recorder_impl.hpp"
+#include "rosbag2_cpp/writer.hpp"
+#include "rosbag2_cpp/writers/sequential_writer.hpp"
 #include <filesystem>
+#include <fstream>
 
 namespace hector_recorder
 {
@@ -60,13 +64,16 @@ std::string resolveOutputDirectory( const std::string &output_dir )
   const std::string ts = make_timestamped_folder_name();
   const bool had_trailing_sep = !output_dir.empty() && ( output_dir.back() == '/' );
 
+  // Expand ~ and $ENV before any path operations
+  const std::string expanded = expandUserAndEnv( output_dir );
+
   fs::path target; // ← This directory will be created by rosbag2
 
-  if ( output_dir.empty() ) {
+  if ( expanded.empty() ) {
     // No output_dir → CWD/rosbag2_<timestamp>
     target = cwd / ts;
   } else {
-    fs::path p = fs::path( output_dir ).lexically_normal();
+    fs::path p = fs::path( expanded ).lexically_normal();
     const bool exists = fs::exists( p );
 
     if ( exists ) {
@@ -74,13 +81,13 @@ std::string resolveOutputDirectory( const std::string &output_dir )
         throw std::runtime_error( "Specified output path exists but is not a directory: " +
                                   p.string() );
       }
-      // Container-Directory cannot be a rosbag directory
       if ( is_rosbag_dir( p ) ) {
-        throw std::runtime_error( "Cannot use an existing rosbag directory as container: " +
-                                  p.string() );
+        // Existing rosbag dir → create timestamped sibling in parent
+        target = p.parent_path() / ts;
+      } else {
+        // Existing directory → timestamped rosbag subdirectory
+        target = p / ts;
       }
-      // Existing directory → always timestamped rosbag directory
-      target = p / ts;
     } else {
       fs::path par = p.parent_path();
       if ( par.empty() ) {
@@ -333,19 +340,15 @@ int calculateRequiredLines( const std::vector<std::string> &lines )
   return static_cast<int>( lines.size() ) + 2; // +2 for borders
 }
 
-bool parseYamlConfig( CustomOptions &custom_options, rosbag2_transport::RecordOptions &record_options,
-                      rosbag2_storage::StorageOptions &storage_options )
+bool parseYamlNode( const YAML::Node &config, CustomOptions &custom_options,
+                    rosbag2_transport::RecordOptions &record_options,
+                    rosbag2_storage::StorageOptions &storage_options )
 {
-  try {
-    YAML::Node config = YAML::LoadFile( custom_options.config_path );
-
-    if ( config["node_name"] ) {
-      custom_options.node_name = config["node_name"].as<std::string>();
-    }
+  if ( config["node_name"] ) {
+    custom_options.node_name = config["node_name"].as<std::string>();
+  }
     if ( config["output"] ) {
-      storage_options.uri = resolveOutputDirectory( config["output"].as<std::string>() );
-    } else {
-      storage_options.uri = resolveOutputDirectory( "" ); // Default to current working directory
+      storage_options.uri = config["output"].as<std::string>();
     }
     if ( config["storage_id"] ) {
       storage_options.storage_id = config["storage_id"].as<std::string>();
@@ -567,15 +570,132 @@ bool parseYamlConfig( CustomOptions &custom_options, rosbag2_transport::RecordOp
 
     if ( record_options.rmw_serialization_format.empty() ) {
       record_options.rmw_serialization_format =
-          rmw_get_serialization_format(); // Default to the current RMW serialization format
+          rmw_get_serialization_format();
     }
 
     return true;
+}
+
+bool parseYamlConfig( CustomOptions &custom_options, rosbag2_transport::RecordOptions &record_options,
+                      rosbag2_storage::StorageOptions &storage_options )
+{
+  try {
+    YAML::Node config = YAML::LoadFile( custom_options.config_path );
+    return parseYamlNode( config, custom_options, record_options, storage_options );
   } catch ( const std::exception &e ) {
     RCLCPP_ERROR( rclcpp::get_logger( "hector_recorder.config.yaml" ),
                   "Error parsing YAML config: %s", e.what() );
     return false;
   }
+}
+
+bool parseYamlConfigFromString( const std::string &yaml_string, CustomOptions &custom_options,
+                                rosbag2_transport::RecordOptions &record_options,
+                                rosbag2_storage::StorageOptions &storage_options )
+{
+  try {
+    YAML::Node config = YAML::Load( yaml_string );
+    return parseYamlNode( config, custom_options, record_options, storage_options );
+  } catch ( const std::exception &e ) {
+    RCLCPP_ERROR( rclcpp::get_logger( "hector_recorder.config.yaml" ),
+                  "Error parsing YAML config from string: %s", e.what() );
+    return false;
+  }
+}
+
+std::string serializeConfigToYaml( const CustomOptions &custom_options,
+                                   const rosbag2_transport::RecordOptions &record_options,
+                                   const rosbag2_storage::StorageOptions &storage_options,
+                                   const std::string &output_override )
+{
+  YAML::Emitter out;
+  out << YAML::BeginMap;
+
+  out << YAML::Key << "node_name" << YAML::Value << custom_options.node_name;
+  out << YAML::Key << "output" << YAML::Value
+      << ( output_override.empty() ? storage_options.uri : output_override );
+  out << YAML::Key << "storage_id" << YAML::Value << storage_options.storage_id;
+
+  if ( storage_options.max_bagfile_size > 0 ) {
+    out << YAML::Key << "max_bag_size" << YAML::Value << storage_options.max_bagfile_size;
+  }
+  if ( storage_options.max_bagfile_duration > 0 ) {
+    out << YAML::Key << "max_bag_duration" << YAML::Value << storage_options.max_bagfile_duration;
+  }
+  if ( storage_options.max_cache_size > 0 ) {
+    out << YAML::Key << "max_cache_size" << YAML::Value << storage_options.max_cache_size;
+  }
+  if ( !storage_options.storage_preset_profile.empty() ) {
+    out << YAML::Key << "storage_preset_profile" << YAML::Value
+        << storage_options.storage_preset_profile;
+  }
+  if ( !storage_options.storage_config_uri.empty() ) {
+    out << YAML::Key << "storage_config_uri" << YAML::Value << storage_options.storage_config_uri;
+  }
+  out << YAML::Key << "snapshot_mode" << YAML::Value << storage_options.snapshot_mode;
+
+  out << YAML::Key << "all_topics" << YAML::Value << record_options.all_topics;
+  out << YAML::Key << "all_services" << YAML::Value << record_options.all_services;
+
+  if ( !record_options.topics.empty() ) {
+    out << YAML::Key << "topics" << YAML::Value << record_options.topics;
+  }
+  if ( !record_options.topic_types.empty() ) {
+    out << YAML::Key << "topic_types" << YAML::Value << record_options.topic_types;
+  }
+  if ( !record_options.services.empty() ) {
+    out << YAML::Key << "services" << YAML::Value << record_options.services;
+  }
+  if ( !record_options.exclude_topics.empty() ) {
+    out << YAML::Key << "exclude_topics" << YAML::Value << record_options.exclude_topics;
+  }
+  if ( !record_options.exclude_topic_types.empty() ) {
+    out << YAML::Key << "exclude_topic_types" << YAML::Value << record_options.exclude_topic_types;
+  }
+  if ( !record_options.exclude_service_events.empty() ) {
+    out << YAML::Key << "exclude_service_events" << YAML::Value
+        << record_options.exclude_service_events;
+  }
+
+  out << YAML::Key << "rmw_serialization_format" << YAML::Value
+      << record_options.rmw_serialization_format;
+
+  if ( !record_options.regex.empty() ) {
+    out << YAML::Key << "regex" << YAML::Value << record_options.regex;
+  }
+  if ( !record_options.exclude_regex.empty() ) {
+    out << YAML::Key << "exclude_regex" << YAML::Value << record_options.exclude_regex;
+  }
+  if ( !record_options.compression_mode.empty() ) {
+    out << YAML::Key << "compression_mode" << YAML::Value << record_options.compression_mode;
+  }
+  if ( !record_options.compression_format.empty() ) {
+    out << YAML::Key << "compression_format" << YAML::Value << record_options.compression_format;
+  }
+
+  out << YAML::Key << "publish_status" << YAML::Value << custom_options.publish_status;
+  out << YAML::Key << "publish_status_topic" << YAML::Value << custom_options.status_topic;
+
+  // Throttle configs
+  if ( !custom_options.topic_throttle.empty() ) {
+    out << YAML::Key << "topic_throttle" << YAML::Value << YAML::BeginMap;
+    for ( const auto &[topic, tc] : custom_options.topic_throttle ) {
+      out << YAML::Key << topic << YAML::Value << YAML::BeginMap;
+      if ( tc.type == ThrottleConfig::MESSAGES ) {
+        out << YAML::Key << "type" << YAML::Value << "messages";
+        out << YAML::Key << "msgs_per_sec" << YAML::Value << tc.msgs_per_sec;
+      } else {
+        out << YAML::Key << "type" << YAML::Value << "bytes";
+        out << YAML::Key << "bytes_per_sec" << YAML::Value << tc.bytes_per_sec;
+        out << YAML::Key << "window" << YAML::Value << tc.window;
+      }
+      out << YAML::EndMap;
+    }
+    out << YAML::EndMap;
+  }
+
+  out << YAML::EndMap;
+  return std::string( out.c_str() );
 }
 
 std::string clipString( const std::string &str, int max_length )
@@ -653,20 +773,241 @@ static std::string expandUserAndEnv( std::string s )
   return s;
 }
 
-std::string resolveOutputUriToAbsolute( std::string &uri )
+std::string resolveOutputUriToAbsolute( const std::string &uri )
 {
-
   std::string expanded = expandUserAndEnv( uri );
   fs::path p( expanded );
 
   // Make absolute and normalize. weakly_canonical doesn't require existence.
-  // If you *want* to preserve symlinks, use fs::absolute(p) instead.
   fs::path abs = fs::absolute( p );
   fs::path norm = fs::weakly_canonical( abs );
 
-  // If weakly_canonical fails (non-existent parent chains), fallback to abs
-  uri = norm.empty() ? abs.string() : norm.string();
-  return uri;
+  return norm.empty() ? abs.string() : norm.string();
+}
+
+// ========================================================================
+// Shared service handler implementations
+// ========================================================================
+
+void fillRecorderStatus( hector_recorder_msgs::msg::RecorderStatus &status_msg,
+                         RecorderImpl *recorder, const CustomOptions &custom_options,
+                         const rosbag2_storage::StorageOptions &storage_options,
+                         const rosbag2_transport::RecordOptions &record_options,
+                         rclcpp::Node *node, const std::string &raw_output_uri )
+{
+  status_msg.output_dir = storage_options.uri;
+  status_msg.config_path = custom_options.config_path;
+  status_msg.node_name = node->get_fully_qualified_name();
+
+  // Determine state
+  if ( recorder && recorder->is_recording() ) {
+    if ( recorder->is_paused() ) {
+      status_msg.state = hector_recorder_msgs::msg::RecorderStatus::PAUSED;
+    } else {
+      status_msg.state = hector_recorder_msgs::msg::RecorderStatus::RECORDING;
+    }
+  } else {
+    status_msg.state = hector_recorder_msgs::msg::RecorderStatus::IDLE;
+  }
+
+  if ( recorder ) {
+    status_msg.files = recorder->get_files();
+    status_msg.duration = recorder->get_bagfile_duration();
+    status_msg.size = recorder->get_bagfile_size();
+
+    for ( const auto &topic_info : recorder->get_topics_info() ) {
+      hector_recorder_msgs::msg::TopicInfo topic_msg;
+      topic_msg.topic = topic_info.first;
+      topic_msg.msg_count = topic_info.second.message_count();
+      topic_msg.frequency = topic_info.second.mean_frequency();
+      topic_msg.bandwidth = topic_info.second.bandwidth();
+      topic_msg.size = topic_info.second.size();
+      topic_msg.type = topic_info.second.topic_type();
+      topic_msg.publisher_count = topic_info.second.publisher_count();
+      topic_msg.qos_reliability = topic_info.second.qos_reliability();
+      topic_msg.throttled = custom_options.topic_throttle.count( topic_info.first ) > 0;
+      status_msg.topics.push_back( topic_msg );
+    }
+  }
+
+  // Available topics on the ROS graph
+  auto all_topics = node->get_topic_names_and_types();
+  for ( const auto &[name, types] : all_topics ) {
+    status_msg.available_topics.push_back( name );
+  }
+
+  // Current config as YAML (use raw base path so restarts resolve fresh directories)
+  status_msg.config_yaml =
+      serializeConfigToYaml( custom_options, record_options, storage_options, raw_output_uri );
+}
+
+static void createAndStartRecorder( std::unique_ptr<RecorderImpl> &recorder,
+                                    const rosbag2_storage::StorageOptions &storage_options,
+                                    const rosbag2_transport::RecordOptions &record_options,
+                                    const CustomOptions &custom_options, rclcpp::Node *node )
+{
+  auto writer_impl = std::make_unique<rosbag2_cpp::writers::SequentialWriter>();
+  auto writer = std::make_shared<rosbag2_cpp::Writer>( std::move( writer_impl ) );
+  recorder = std::make_unique<RecorderImpl>( node, writer, storage_options, record_options,
+                                             custom_options.topic_throttle );
+  recorder->record();
+}
+
+void handleStartRecording( std::unique_ptr<RecorderImpl> &recorder,
+                           rosbag2_storage::StorageOptions &storage_options,
+                           const rosbag2_transport::RecordOptions &record_options,
+                           const CustomOptions &custom_options,
+                           const std::string &raw_output_uri,
+                           const std::string &request_output_dir, rclcpp::Node *node,
+                           bool &out_success, std::string &out_message,
+                           std::string &out_bag_path )
+{
+  if ( recorder && recorder->is_recording() ) {
+    out_success = false;
+    out_message = "Already recording. Stop first.";
+    return;
+  }
+
+  try {
+    if ( !request_output_dir.empty() ) {
+      storage_options.uri = resolveOutputDirectory( request_output_dir );
+    } else {
+      storage_options.uri = resolveOutputDirectory( raw_output_uri );
+    }
+
+    createAndStartRecorder( recorder, storage_options, record_options, custom_options, node );
+    out_success = true;
+    out_message = "Recording started.";
+    out_bag_path = storage_options.uri;
+    RCLCPP_INFO( node->get_logger(), "Recording started: %s", storage_options.uri.c_str() );
+  } catch ( const std::exception &e ) {
+    out_success = false;
+    out_message = std::string( "Failed to start recording: " ) + e.what();
+    RCLCPP_ERROR( node->get_logger(), "%s", out_message.c_str() );
+  }
+}
+
+void handleStopRecording( std::unique_ptr<RecorderImpl> &recorder,
+                          const rosbag2_storage::StorageOptions &storage_options,
+                          bool &out_success, std::string &out_message,
+                          std::string &out_bag_path )
+{
+  if ( !recorder || !recorder->is_recording() ) {
+    out_success = false;
+    out_message = "Not currently recording.";
+    return;
+  }
+
+  try {
+    out_bag_path = storage_options.uri;
+    recorder->stop();
+    recorder.reset();
+    out_success = true;
+    out_message = "Recording stopped.";
+  } catch ( const std::exception &e ) {
+    out_success = false;
+    out_message = std::string( "Failed to stop recording: " ) + e.what();
+  }
+}
+
+void handleApplyConfig( std::unique_ptr<RecorderImpl> &recorder, CustomOptions &custom_options,
+                        rosbag2_transport::RecordOptions &record_options,
+                        rosbag2_storage::StorageOptions &storage_options,
+                        std::string &raw_output_uri, const std::string &config_yaml,
+                        bool restart, rclcpp::Node *node, bool &out_success,
+                        std::string &out_message, std::string &out_active_config_yaml )
+{
+  try {
+    CustomOptions new_custom = custom_options;
+    rosbag2_transport::RecordOptions new_record = record_options;
+    rosbag2_storage::StorageOptions new_storage = storage_options;
+
+    if ( !parseYamlConfigFromString( config_yaml, new_custom, new_record, new_storage ) ) {
+      out_success = false;
+      out_message = "Failed to parse YAML config.";
+      return;
+    }
+
+    bool was_recording = recorder && recorder->is_recording();
+
+    if ( restart && was_recording ) {
+      recorder->stop();
+      recorder.reset();
+    }
+
+    custom_options = new_custom;
+    record_options = new_record;
+    raw_output_uri = new_storage.uri;
+    storage_options = new_storage;
+
+    if ( restart && was_recording ) {
+      // Full restart: stop current recording, start fresh bag
+      storage_options.uri = resolveOutputDirectory( raw_output_uri );
+      createAndStartRecorder( recorder, storage_options, record_options, custom_options, node );
+      RCLCPP_INFO( node->get_logger(), "Config applied and recording restarted." );
+    } else if ( was_recording ) {
+      // Hot update: update topic filter and restart discovery to pick up new topics
+      recorder->update_record_options( record_options );
+      RCLCPP_INFO( node->get_logger(), "Config applied, new topics will be added to current bag." );
+    }
+
+    out_success = true;
+    if ( restart && was_recording ) {
+      out_message = "Config applied, recording restarted.";
+    } else if ( was_recording ) {
+      out_message = "Config applied, new topics will be added to current recording.";
+    } else {
+      out_message = "Config applied.";
+    }
+    out_active_config_yaml =
+        serializeConfigToYaml( custom_options, record_options, storage_options, raw_output_uri );
+  } catch ( const std::exception &e ) {
+    out_success = false;
+    out_message = std::string( "Failed to apply config: " ) + e.what();
+  }
+}
+
+void handleSaveConfig( const std::string &config_yaml, const std::string &file_path,
+                       bool &out_success, std::string &out_message )
+{
+  try {
+    std::filesystem::path path( file_path );
+    if ( path.has_parent_path() ) {
+      std::filesystem::create_directories( path.parent_path() );
+    }
+
+    std::ofstream ofs( file_path );
+    if ( !ofs.is_open() ) {
+      out_success = false;
+      out_message = "Failed to open file for writing: " + file_path;
+      return;
+    }
+
+    ofs << config_yaml;
+    ofs.close();
+
+    out_success = true;
+    out_message = "Config saved to " + file_path;
+  } catch ( const std::exception &e ) {
+    out_success = false;
+    out_message = std::string( "Failed to save config: " ) + e.what();
+  }
+}
+
+void handleGetAvailableTopics( rclcpp::Node *node, std::vector<std::string> &out_topics,
+                               std::vector<std::string> &out_types )
+{
+  auto all_topics = node->get_topic_names_and_types();
+  for ( const auto &[name, types] : all_topics ) {
+    out_topics.push_back( name );
+    std::string type_str;
+    for ( size_t i = 0; i < types.size(); ++i ) {
+      if ( i > 0 )
+        type_str += ", ";
+      type_str += types[i];
+    }
+    out_types.push_back( type_str );
+  }
 }
 
 } // namespace hector_recorder

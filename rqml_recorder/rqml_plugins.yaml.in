@@ -1,0 +1,6 @@
+plugins:
+  - id: rqml_recorder.recorder_manager
+    name: "Recorder Manager"
+    group: "Recording"
+    path: "share/@PROJECT_NAME@/qml/RecorderManager.qml"
+    single_instance: false

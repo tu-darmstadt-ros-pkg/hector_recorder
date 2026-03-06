@@ -1,3 +1,6 @@
+#ifndef HECTOR_RECORDER_IMPL_HPP
+#define HECTOR_RECORDER_IMPL_HPP
+
 // Copyright 2018 Open Source Robotics Foundation, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -89,6 +92,15 @@ public:
 
   /// Pause the recording.
   void pause();
+
+  /// Resume recording after pause.
+  void resume();
+
+  /// Check if currently paused.
+  bool is_paused() const { return paused_.load(); }
+
+  /// Update record options and restart topic discovery to pick up new topics.
+  void update_record_options( const rosbag2_transport::RecordOptions &new_options );
 
   /// Start discovery
   void start_discovery();
@@ -201,3 +213,5 @@ std::string reliability_to_string(
   const rclcpp::ReliabilityPolicy & reliability);
 
 }
+
+#endif // HECTOR_RECORDER_IMPL_HPP

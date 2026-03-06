@@ -17,10 +17,11 @@ set(LIBRARY_NAME hector_recorder_lib)
 # set(EXECUTABLE_NAME server)
 
 # Add library
-add_library(${LIBRARY_NAME} SHARED 
+add_library(${LIBRARY_NAME} SHARED
         src/arg_parser.cpp
         src/modified/recorder_impl.cpp
-        src/utils.cpp   
+        src/utils.cpp
+        src/recorder_node.cpp
         )
 
 # Include directories
@@ -56,6 +57,24 @@ target_link_libraries(record
   ${rclcpp_LIBRARIES}
   fmt::fmt
   ${CURSES_LIBRARIES}
+  yaml-cpp
+)
+
+# Headless recorder executable (no ncurses dependency)
+add_executable(record_headless
+        src/main_headless.cpp
+)
+
+ament_target_dependencies(record_headless
+  rclcpp
+  hector_recorder_msgs
+  fmt
+)
+
+target_link_libraries(record_headless
+  ${LIBRARY_NAME}
+  ${rclcpp_LIBRARIES}
+  fmt::fmt
   yaml-cpp
 )
 
@@ -97,5 +116,5 @@ install(DIRECTORY
 
 ament_package()
 
-install(TARGETS record
+install(TARGETS record record_headless
         DESTINATION lib/${PROJECT_NAME})
