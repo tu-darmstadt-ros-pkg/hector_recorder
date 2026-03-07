@@ -29,6 +29,18 @@ Rectangle {
 
     signal statusMessage(string msg, bool isError)
 
+    //! Cached hostname from GetRecorderInfo service
+    property string _cachedHostname: ""
+
+    onRecorderInterfaceChanged: {
+        _cachedHostname = "";
+        if (recorderInterface) {
+            recorderInterface.fetchRecorderInfo(function(info) {
+                root._cachedHostname = info.hostname;
+            });
+        }
+    }
+
     //! Current sort column key
     property string sortColumn: "startTime"
     //! true = ascending, false = descending
@@ -131,6 +143,7 @@ Rectangle {
 
                         SortableHeader { label: "Name";       sortKey: "name";       Layout.preferredWidth: 200; Layout.fillWidth: true }
                         SortableHeader { label: "Date";       sortKey: "startTime";  Layout.preferredWidth: 140 }
+                        SortableHeader { label: "Duration";   sortKey: "durationSecs"; Layout.preferredWidth: 70; horizontalAlignment: Text.AlignRight }
                         SortableHeader { label: "Size";       sortKey: "sizeBytes";  Layout.preferredWidth: 70; horizontalAlignment: Text.AlignRight }
                         Label          { text: "Topics";     font.bold: true; font.pixelSize: 11; Layout.preferredWidth: 50; horizontalAlignment: Text.AlignRight }
                         SortableHeader { label: "Recorded By"; sortKey: "recordedBy"; Layout.preferredWidth: 120 }
@@ -150,7 +163,7 @@ Rectangle {
                     delegate: Rectangle {
                         width: bagListView.width
                         height: 36
-                        color: index === root.selectedIndex ? Qt.darker(palette.highlight, 1.8) :
+                        color: index === root.selectedIndex ? palette.highlight :
                                (bagRowMouse.containsMouse ? palette.midlight : palette.base)
                         radius: 2
 
@@ -186,8 +199,15 @@ Rectangle {
                             Label {
                                 text: model.startTime
                                 font.pixelSize: 11
-                                color: palette.mid
+                                opacity: 0.7
                                 Layout.preferredWidth: 140
+                            }
+
+                            Label {
+                                text: _formatDuration(model.durationSecs)
+                                font.pixelSize: 11
+                                horizontalAlignment: Text.AlignRight
+                                Layout.preferredWidth: 70
                             }
 
                             Label {
@@ -208,7 +228,7 @@ Rectangle {
                                 text: model.recordedBy
                                 font.pixelSize: 11
                                 elide: Text.ElideRight
-                                color: palette.mid
+                                opacity: 0.7
                                 Layout.preferredWidth: 120
                             }
 
@@ -327,7 +347,7 @@ Rectangle {
                         text: _bag ? "Duration: " + _formatDuration(_bag.durationSecs)
                               + "  |  Messages: " + _bag.messageCount : ""
                         font.pixelSize: 11
-                        color: palette.mid
+                        opacity: 0.7
                     }
 
                     // Separator
@@ -371,7 +391,7 @@ Rectangle {
                                 text: model.type
                                 font.pixelSize: 12
                                 elide: Text.ElideRight
-                                color: palette.mid
+                                opacity: 0.7
                                 Layout.preferredWidth: 120
                             }
                             Label {
@@ -475,10 +495,9 @@ Rectangle {
             }
 
             Label {
-                text: "From: " + (root.recorderInterface && root.recorderInterface.status
-                    ? root.recorderInterface.status.hostname : "unknown")
+                text: "From: " + (root._cachedHostname || "unknown")
                 font.pixelSize: 11
-                color: palette.mid
+                opacity: 0.7
             }
 
             RowLayout {
@@ -507,8 +526,7 @@ Rectangle {
                     text: "Transfer"
                     highlighted: true
                     onClicked: {
-                        let hostname = root.recorderInterface && root.recorderInterface.status
-                            ? root.recorderInterface.status.hostname : "";
+                        let hostname = root._cachedHostname;
                         if (!hostname) {
                             root.statusMessage("Cannot transfer: recorder hostname unknown", true);
                             transferDialog.close();

@@ -109,7 +109,7 @@ Rectangle {
         Rectangle {
             Layout.fillWidth: true
             height: 28
-            color: palette.mid
+            color: palette.button
             radius: 2
 
             RowLayout {
@@ -225,9 +225,9 @@ Rectangle {
                         elide: Text.ElideMiddle
                         color: {
                             if (!rowData) return palette.text;
-                            if (rowData.throttled) return Material.color(Material.Cyan);
-                            if (rowData.publisherCount === 0) return Material.color(Material.Red);
-                            if (rowData.msgCount === 0) return Material.color(Material.Orange);
+                            if (rowData.throttled) return Material.color(Material.Cyan, Material.Shade200);
+                            if (rowData.publisherCount === 0) return Material.color(Material.Red, Material.Shade200);
+                            if (rowData.msgCount === 0) return Material.color(Material.Orange, Material.Shade200);
                             return palette.text;
                         }
                     }
@@ -242,14 +242,14 @@ Rectangle {
                         Layout.preferredWidth: 70
                         text: rowData && rowData.frequency !== undefined ? root.formatFreq(rowData.frequency) : ""
                         horizontalAlignment: Text.AlignRight
-                        color: rowData && rowData.throttled ? Material.color(Material.Cyan) : palette.text
+                        color: rowData && rowData.throttled ? Material.color(Material.Cyan, Material.Shade200) : palette.text
                     }
 
                     Label {
                         Layout.preferredWidth: 80
                         text: rowData && rowData.bandwidth !== undefined ? root.formatBandwidth(rowData.bandwidth) : ""
                         horizontalAlignment: Text.AlignRight
-                        color: rowData && rowData.throttled ? Material.color(Material.Cyan) : palette.text
+                        color: rowData && rowData.throttled ? Material.color(Material.Cyan, Material.Shade200) : palette.text
                     }
 
                     Label {

@@ -58,6 +58,15 @@ QtObject {
     property var availableTopicsClient: recorderNamespace
         ? Ros2.createServiceClient(recorderNamespace + "/get_available_topics",
             "hector_recorder_msgs/srv/GetAvailableTopics") : null
+    property var availableServicesClient: recorderNamespace
+        ? Ros2.createServiceClient(recorderNamespace + "/get_available_services",
+            "hector_recorder_msgs/srv/GetAvailableServices") : null
+    property var getConfigClient: recorderNamespace
+        ? Ros2.createServiceClient(recorderNamespace + "/get_config",
+            "hector_recorder_msgs/srv/GetConfig") : null
+    property var getRecorderInfoClient: recorderNamespace
+        ? Ros2.createServiceClient(recorderNamespace + "/get_recorder_info",
+            "hector_recorder_msgs/srv/GetRecorderInfo") : null
     property var listBagsClient: recorderNamespace
         ? Ros2.createServiceClient(recorderNamespace + "/list_bags",
             "hector_recorder_msgs/srv/ListBags") : null
@@ -152,6 +161,44 @@ QtObject {
                     });
                 }
                 callback(result);
+            }
+        });
+    }
+
+    function fetchAvailableServices(callback) {
+        if (!availableServicesClient) return;
+        availableServicesClient.sendRequestAsync({}, function(response) {
+            if (response && callback) {
+                let result = [];
+                for (let i = 0; i < response.services.length; i++) {
+                    result.push({
+                        name: response.services.at(i),
+                        type: response.types.at(i)
+                    });
+                }
+                callback(result);
+            }
+        });
+    }
+
+    function fetchConfig(callback) {
+        if (!getConfigClient) return;
+        getConfigClient.sendRequestAsync({}, function(response) {
+            if (response && callback) {
+                callback(response.config_yaml || "");
+            }
+        });
+    }
+
+    function fetchRecorderInfo(callback) {
+        if (!getRecorderInfoClient) return;
+        getRecorderInfoClient.sendRequestAsync({}, function(response) {
+            if (response && callback) {
+                callback({
+                    hostname: response.hostname || "",
+                    recordedBy: response.recorded_by || "",
+                    configPath: response.config_path || ""
+                });
             }
         });
     }

@@ -13,6 +13,9 @@
 #include "hector_recorder_msgs/srv/apply_config.hpp"
 #include "hector_recorder_msgs/srv/save_config.hpp"
 #include "hector_recorder_msgs/srv/get_available_topics.hpp"
+#include "hector_recorder_msgs/srv/get_available_services.hpp"
+#include "hector_recorder_msgs/srv/get_config.hpp"
+#include "hector_recorder_msgs/srv/get_recorder_info.hpp"
 #include "hector_recorder_msgs/srv/list_bags.hpp"
 #include "hector_recorder_msgs/srv/get_bag_details.hpp"
 #include "hector_recorder_msgs/srv/delete_bag.hpp"
@@ -69,6 +72,15 @@ private:
   void onGetAvailableTopics(
       const std::shared_ptr<hector_recorder_msgs::srv::GetAvailableTopics::Request> request,
       std::shared_ptr<hector_recorder_msgs::srv::GetAvailableTopics::Response> response );
+  void onGetAvailableServices(
+      const std::shared_ptr<hector_recorder_msgs::srv::GetAvailableServices::Request> request,
+      std::shared_ptr<hector_recorder_msgs::srv::GetAvailableServices::Response> response );
+  void onGetConfig(
+      const std::shared_ptr<hector_recorder_msgs::srv::GetConfig::Request> request,
+      std::shared_ptr<hector_recorder_msgs::srv::GetConfig::Response> response );
+  void onGetRecorderInfo(
+      const std::shared_ptr<hector_recorder_msgs::srv::GetRecorderInfo::Request> request,
+      std::shared_ptr<hector_recorder_msgs::srv::GetRecorderInfo::Response> response );
   void onListBags(
       const std::shared_ptr<hector_recorder_msgs::srv::ListBags::Request> request,
       std::shared_ptr<hector_recorder_msgs::srv::ListBags::Response> response );
@@ -96,6 +108,9 @@ private:
   rclcpp::Service<hector_recorder_msgs::srv::ApplyConfig>::SharedPtr config_srv_;
   rclcpp::Service<hector_recorder_msgs::srv::SaveConfig>::SharedPtr save_config_srv_;
   rclcpp::Service<hector_recorder_msgs::srv::GetAvailableTopics>::SharedPtr topics_srv_;
+  rclcpp::Service<hector_recorder_msgs::srv::GetAvailableServices>::SharedPtr services_srv_;
+  rclcpp::Service<hector_recorder_msgs::srv::GetConfig>::SharedPtr get_config_srv_;
+  rclcpp::Service<hector_recorder_msgs::srv::GetRecorderInfo>::SharedPtr get_info_srv_;
   rclcpp::Service<hector_recorder_msgs::srv::ListBags>::SharedPtr list_bags_srv_;
   rclcpp::Service<hector_recorder_msgs::srv::GetBagDetails>::SharedPtr get_bag_details_srv_;
   rclcpp::Service<hector_recorder_msgs::srv::DeleteBag>::SharedPtr delete_bag_srv_;

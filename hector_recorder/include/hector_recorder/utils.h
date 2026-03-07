@@ -76,12 +76,12 @@ std::string resolveOutputUriToAbsolute( const std::string &uri );
 // ========================================================================
 
 /// Populate a RecorderStatus message from the current recorder state.
-/// Works whether recorder is null (IDLE) or active.
+/// Only includes live data that changes every tick. Static/rarely-changing
+/// data (config, hostname, available topics) is served via on-demand services.
 void fillRecorderStatus( hector_recorder_msgs::msg::RecorderStatus &status_msg,
                          RecorderImpl *recorder, const CustomOptions &custom_options,
                          const rosbag2_storage::StorageOptions &storage_options,
-                         const rosbag2_transport::RecordOptions &record_options,
-                         rclcpp::Node *node, const std::string &raw_output_uri = "" );
+                         rclcpp::Node *node );
 
 /// Handle StartRecording service: resolve output, create recorder, start.
 /// On success sets recorder and updates storage_options.uri.
@@ -115,6 +115,20 @@ void handleSaveConfig( const std::string &config_yaml, const std::string &file_p
 /// Handle GetAvailableTopics service: query node for all topics.
 void handleGetAvailableTopics( rclcpp::Node *node, std::vector<std::string> &out_topics,
                                std::vector<std::string> &out_types );
+
+/// Handle GetAvailableServices service: query node for non-infrastructure services.
+void handleGetAvailableServices( rclcpp::Node *node, std::vector<std::string> &out_services,
+                                 std::vector<std::string> &out_types );
+
+/// Handle GetConfig service: serialize current config to YAML.
+void handleGetConfig( const CustomOptions &custom_options,
+                      const rosbag2_transport::RecordOptions &record_options,
+                      const rosbag2_storage::StorageOptions &storage_options,
+                      const std::string &raw_output_uri, std::string &out_config_yaml );
+
+/// Handle GetRecorderInfo service: return static recorder metadata.
+void handleGetRecorderInfo( const CustomOptions &custom_options, std::string &out_hostname,
+                            std::string &out_recorded_by, std::string &out_config_path );
 
 /// Handle ListBags service: scan directory for rosbag2 bags.
 void handleListBags( const std::string &path,

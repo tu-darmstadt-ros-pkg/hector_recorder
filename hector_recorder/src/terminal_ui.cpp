@@ -630,6 +630,18 @@ void TerminalUI::initializeServices()
       "~/get_available_topics",
       std::bind( &TerminalUI::onGetAvailableTopics, this, std::placeholders::_1,
                  std::placeholders::_2 ) );
+  services_srv_ = this->create_service<hector_recorder_msgs::srv::GetAvailableServices>(
+      "~/get_available_services",
+      std::bind( &TerminalUI::onGetAvailableServices, this, std::placeholders::_1,
+                 std::placeholders::_2 ) );
+  get_config_srv_ = this->create_service<hector_recorder_msgs::srv::GetConfig>(
+      "~/get_config",
+      std::bind( &TerminalUI::onGetConfig, this, std::placeholders::_1,
+                 std::placeholders::_2 ) );
+  get_info_srv_ = this->create_service<hector_recorder_msgs::srv::GetRecorderInfo>(
+      "~/get_recorder_info",
+      std::bind( &TerminalUI::onGetRecorderInfo, this, std::placeholders::_1,
+                 std::placeholders::_2 ) );
   list_bags_srv_ = this->create_service<hector_recorder_msgs::srv::ListBags>(
       "~/list_bags",
       std::bind( &TerminalUI::onListBags, this, std::placeholders::_1,
@@ -747,6 +759,30 @@ void TerminalUI::onGetAvailableTopics(
   handleGetAvailableTopics( this, response->topics, response->types );
 }
 
+void TerminalUI::onGetAvailableServices(
+    const std::shared_ptr<hector_recorder_msgs::srv::GetAvailableServices::Request>,
+    std::shared_ptr<hector_recorder_msgs::srv::GetAvailableServices::Response> response )
+{
+  handleGetAvailableServices( this, response->services, response->types );
+}
+
+void TerminalUI::onGetConfig(
+    const std::shared_ptr<hector_recorder_msgs::srv::GetConfig::Request>,
+    std::shared_ptr<hector_recorder_msgs::srv::GetConfig::Response> response )
+{
+  std::lock_guard<std::mutex> lock( data_mutex_ );
+  handleGetConfig( custom_options_, record_options_, storage_options_, raw_output_uri_,
+                   response->config_yaml );
+}
+
+void TerminalUI::onGetRecorderInfo(
+    const std::shared_ptr<hector_recorder_msgs::srv::GetRecorderInfo::Request>,
+    std::shared_ptr<hector_recorder_msgs::srv::GetRecorderInfo::Response> response )
+{
+  handleGetRecorderInfo( custom_options_, response->hostname, response->recorded_by,
+                         response->config_path );
+}
+
 void TerminalUI::onListBags(
     const std::shared_ptr<hector_recorder_msgs::srv::ListBags::Request> request,
     std::shared_ptr<hector_recorder_msgs::srv::ListBags::Response> response )
@@ -784,8 +820,7 @@ void TerminalUI::publishRecorderStatus()
   hector_recorder_msgs::msg::RecorderStatus status_msg;
   {
     std::lock_guard<std::mutex> lock( data_mutex_ );
-    fillRecorderStatus( status_msg, recorder_.get(), custom_options_, storage_options_,
-                        record_options_, this, raw_output_uri_ );
+    fillRecorderStatus( status_msg, recorder_.get(), custom_options_, storage_options_, this );
   }
   status_pub_->publish( status_msg );
 }

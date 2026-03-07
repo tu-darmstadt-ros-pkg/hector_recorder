@@ -779,12 +779,10 @@ std::string resolveOutputUriToAbsolute( const std::string &uri )
 void fillRecorderStatus( hector_recorder_msgs::msg::RecorderStatus &status_msg,
                          RecorderImpl *recorder, const CustomOptions &custom_options,
                          const rosbag2_storage::StorageOptions &storage_options,
-                         const rosbag2_transport::RecordOptions &record_options,
-                         rclcpp::Node *node, const std::string &raw_output_uri )
+                         rclcpp::Node *node )
 {
-  status_msg.output_dir = storage_options.uri;
-  status_msg.config_path = custom_options.config_path;
   status_msg.node_name = node->get_fully_qualified_name();
+  status_msg.output_dir = storage_options.uri;
 
   // Determine state
   if ( recorder && recorder->is_recording() ) {
@@ -816,21 +814,24 @@ void fillRecorderStatus( hector_recorder_msgs::msg::RecorderStatus &status_msg,
       status_msg.topics.push_back( topic_msg );
     }
   }
+}
 
-  // Available topics on the ROS graph
-  auto all_topics = node->get_topic_names_and_types();
-  for ( const auto &[name, types] : all_topics ) {
-    status_msg.available_topics.push_back( name );
-  }
-
-  // Current config as YAML (use raw base path so restarts resolve fresh directories)
-  status_msg.config_yaml =
+void handleGetConfig( const CustomOptions &custom_options,
+                      const rosbag2_transport::RecordOptions &record_options,
+                      const rosbag2_storage::StorageOptions &storage_options,
+                      const std::string &raw_output_uri, std::string &out_config_yaml )
+{
+  out_config_yaml =
       serializeConfigToYaml( custom_options, record_options, storage_options, raw_output_uri );
+}
 
-  // Hostname and recorded_by
-  status_msg.hostname = getHostname();
-  status_msg.recorded_by =
+void handleGetRecorderInfo( const CustomOptions &custom_options, std::string &out_hostname,
+                            std::string &out_recorded_by, std::string &out_config_path )
+{
+  out_hostname = getHostname();
+  out_recorded_by =
       custom_options.recorded_by.empty() ? getDefaultRecordedBy() : custom_options.recorded_by;
+  out_config_path = custom_options.config_path;
 }
 
 static void createAndStartRecorder( std::unique_ptr<RecorderImpl> &recorder,
@@ -998,6 +999,54 @@ void handleGetAvailableTopics( rclcpp::Node *node, std::vector<std::string> &out
   auto all_topics = node->get_topic_names_and_types();
   for ( const auto &[name, types] : all_topics ) {
     out_topics.push_back( name );
+    std::string type_str;
+    for ( size_t i = 0; i < types.size(); ++i ) {
+      if ( i > 0 )
+        type_str += ", ";
+      type_str += types[i];
+    }
+    out_types.push_back( type_str );
+  }
+}
+
+static bool isInfrastructureService( const std::string &service_name )
+{
+  auto pos = service_name.rfind( '/' );
+  if ( pos == std::string::npos )
+    return false;
+  std::string_view leaf( service_name.data() + pos + 1, service_name.size() - pos - 1 );
+
+  // Parameter services
+  if ( leaf == "list_parameters" || leaf == "describe_parameters" ||
+       leaf == "get_parameters" || leaf == "set_parameters" ||
+       leaf == "get_parameter_types" || leaf == "set_parameters_atomically" )
+    return true;
+
+  // Lifecycle services
+  if ( leaf == "change_state" || leaf == "get_state" ||
+       leaf == "get_available_states" || leaf == "get_available_transitions" ||
+       leaf == "get_transition_graph" )
+    return true;
+
+  // Type description service
+  if ( leaf == "get_type_description" )
+    return true;
+
+  // Logger services
+  if ( leaf == "set_logger_levels" || leaf == "get_logger_levels" )
+    return true;
+
+  return false;
+}
+
+void handleGetAvailableServices( rclcpp::Node *node, std::vector<std::string> &out_services,
+                                 std::vector<std::string> &out_types )
+{
+  auto all_services = node->get_service_names_and_types();
+  for ( const auto &[name, types] : all_services ) {
+    if ( isInfrastructureService( name ) )
+      continue;
+    out_services.push_back( name );
     std::string type_str;
     for ( size_t i = 0; i < types.size(); ++i ) {
       if ( i > 0 )

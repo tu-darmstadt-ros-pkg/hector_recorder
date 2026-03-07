@@ -150,36 +150,67 @@ Rectangle {
         }
 
         // --------------------------------------------------------------------
-        // Machine Info
+        // Machine Info (fetched via GetRecorderInfo service)
         // --------------------------------------------------------------------
 
         RowLayout {
+            id: machineInfoRow
             Layout.fillWidth: true
             spacing: 12
             visible: d.currentInterface && d.currentInterface.status
 
-            property var s: d.currentInterface ? d.currentInterface.status : null
+            property string _hostname: ""
+            property string _recordedBy: ""
+
+            function _fetchInfo() {
+                if (!d.currentInterface || !d.currentInterface.recorderNamespace) return;
+                d.currentInterface.fetchRecorderInfo(function(info) {
+                    machineInfoRow._hostname = info.hostname;
+                    machineInfoRow._recordedBy = info.recordedBy;
+                });
+            }
+
+            // recorderNamespace is set from the first status message, so it may
+            // be empty when the interface is first assigned. We listen for both
+            // events: interface change (may already have namespace) and namespace
+            // change (fires when first status arrives).
+            Connections {
+                target: d.currentInterface
+                function onRecorderNamespaceChanged() {
+                    machineInfoRow._fetchInfo();
+                }
+            }
+
+            Connections {
+                target: d
+                function onCurrentInterfaceChanged() {
+                    machineInfoRow._hostname = "";
+                    machineInfoRow._recordedBy = "";
+                    machineInfoRow._fetchInfo();
+                }
+            }
 
             Label {
-                text: "Host: " + (parent.s ? parent.s.hostname : "")
+                text: "Host: " + parent._hostname
                 font.pixelSize: 11
-                color: palette.mid
+                opacity: 0.7
             }
 
             Rectangle { width: 1; height: 14; color: palette.mid; opacity: 0.4 }
 
             Label {
-                text: "User: " + (parent.s ? parent.s.recorded_by : "")
+                text: "User: " + parent._recordedBy
                 font.pixelSize: 11
-                color: palette.mid
+                opacity: 0.7
             }
 
             Rectangle { width: 1; height: 14; color: palette.mid; opacity: 0.4 }
 
             Label {
-                text: "Node: " + (parent.s ? parent.s.node_name : "")
+                property var s: d.currentInterface ? d.currentInterface.status : null
+                text: "Node: " + (s ? s.node_name : "")
                 font.pixelSize: 11
-                color: palette.mid
+                opacity: 0.7
                 elide: Text.ElideMiddle
                 Layout.fillWidth: true
             }
@@ -240,7 +271,7 @@ Rectangle {
                             switch (d.currentInterface.state) {
                                 case "recording": return Material.color(Material.Green);
                                 case "paused": return Material.color(Material.Orange);
-                                case "idle": return palette.mid;
+                                case "idle": return palette.text;
                                 case "disconnected": return Material.color(Material.Red);
                                 default: return palette.text;
                             }
@@ -317,7 +348,7 @@ Rectangle {
                                 + "  |  Files: " + (s.files ? s.files.length : 0)
                                 + "  |  Topics: " + (s.topics ? s.topics.length : 0)
                             : ""
-                        color: palette.mid
+                        opacity: 0.7
                     }
                 }
 
@@ -421,8 +452,8 @@ Rectangle {
     Popup {
         id: outputDirDialog
         modal: true
-        width: 400
-        height: 140
+        width: 450
+        height: 220
         anchors.centerIn: parent
         padding: 16
 
@@ -432,19 +463,62 @@ Rectangle {
             radius: 8
         }
 
+        onOpened: {
+            bagNameField.text = "";
+            // Fetch the raw configured output path (e.g. "~/bags/") from the
+            // config YAML, not from status.output_dir which holds the resolved
+            // path of the last recording.
+            outputDirField.text = "";
+            if (d.currentInterface) {
+                d.currentInterface.fetchConfig(function(yaml) {
+                    let m = yaml.match(/^output:\s*"?([^"\n]*)"?$/m);
+                    let dir = m ? m[1] : "";
+                    if (dir.length > 0 && dir[dir.length - 1] !== "/")
+                        dir += "/";
+                    outputDirField.text = dir;
+                });
+            }
+        }
+
         ColumnLayout {
             anchors.fill: parent
             spacing: 8
 
             Label {
-                text: "Output Directory (leave empty for default):"
+                text: "Start Recording"
                 font.bold: true
             }
 
-            TextField {
-                id: outputDirField
+            GridLayout {
                 Layout.fillWidth: true
-                placeholderText: "/path/to/bags/"
+                columns: 2
+                columnSpacing: 8
+                rowSpacing: 6
+
+                Label { text: "Directory:" }
+                TextField {
+                    id: outputDirField
+                    Layout.fillWidth: true
+                    placeholderText: "~/bags/"
+                }
+
+                Label { text: "Name:" }
+                TextField {
+                    id: bagNameField
+                    Layout.fillWidth: true
+                    placeholderText: "auto (rosbag2_YYYY_MM_DD-HH_mm_ss)"
+                }
+            }
+
+            Label {
+                text: bagNameField.text
+                    ? "Bag folder: " + outputDirField.text + bagNameField.text
+                    : "A timestamped subfolder will be created automatically."
+                font.pixelSize: 11
+                opacity: 0.7
+                wrapMode: Text.Wrap
+                Layout.fillWidth: true
+                elide: Text.ElideMiddle
             }
 
             RowLayout {
@@ -461,10 +535,18 @@ Rectangle {
                     highlighted: true
                     onClicked: {
                         if (d.currentInterface) {
-                            d.currentInterface.startRecording(outputDirField.text);
+                            let dir = outputDirField.text;
+                            let name = bagNameField.text.trim();
+                            if (name) {
+                                // Ensure directory has trailing slash before appending name
+                                if (dir.length > 0 && dir[dir.length - 1] !== "/")
+                                    dir += "/";
+                                d.currentInterface.startRecording(dir + name);
+                            } else {
+                                d.currentInterface.startRecording(dir);
+                            }
                         }
                         outputDirDialog.close();
-                        outputDirField.text = "";
                     }
                 }
             }

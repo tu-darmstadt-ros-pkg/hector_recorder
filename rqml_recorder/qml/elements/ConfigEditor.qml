@@ -291,7 +291,8 @@ Popup {
                                     anchors.centerIn: parent
                                     font.pixelSize: 10
                                     font.bold: !!throttleBadge._th
-                                    color: throttleBadge._th ? Material.color(Material.Orange) : palette.mid
+                                    color: throttleBadge._th ? Material.color(Material.Orange) : palette.text
+                                    opacity: throttleBadge._th ? 1.0 : 0.5
                                     text: {
                                         let th = throttleBadge._th;
                                         if (!th) return "\u23F1"; // stopwatch
@@ -319,11 +320,10 @@ Popup {
 
                             Label {
                                 text: model.topicType
-                                color: palette.mid
                                 font.pixelSize: 11
                                 Layout.preferredWidth: 180
                                 elide: Text.ElideRight
-                                opacity: allTopicsCheck.checked ? 0.5 : 1.0
+                                opacity: allTopicsCheck.checked ? 0.4 : 0.7
                             }
                         }
                     }
@@ -480,9 +480,7 @@ Popup {
                         font.pixelSize: 12
                         wrapMode: TextArea.WrapAnywhere
                         selectByMouse: true
-                        text: root.recorderInterface && root.recorderInterface.status
-                            ? root.recorderInterface.status.config_yaml || ""
-                            : ""
+                        text: ""
                     }
                 }
             }
@@ -687,13 +685,17 @@ Popup {
         return lines.join("\n") + "\n";
     }
 
-    //! Load current config from the recorder status into both views
+    //! Cached config YAML fetched on dialog open
+    property string _cachedConfigYaml: ""
+
+    //! Load current config from the recorder via GetConfig service
     function _loadCurrentConfig() {
-        if (root.recorderInterface && root.recorderInterface.status) {
-            let yaml = root.recorderInterface.status.config_yaml || "";
+        if (!root.recorderInterface) return;
+        root.recorderInterface.fetchConfig(function(yaml) {
+            root._cachedConfigYaml = yaml;
             configTextArea.text = yaml;
             _parseYamlToTopicSelector(yaml);
-        }
+        });
     }
 
     /**
@@ -845,10 +847,9 @@ Popup {
                 }
             }
 
-            // Also get topics from current YAML config
-            if (root.recorderInterface.status) {
-                let configTopics = _parseTopicList(
-                    root.recorderInterface.status.config_yaml || "");
+            // Also get topics from cached config YAML
+            if (root._cachedConfigYaml) {
+                let configTopics = _parseTopicList(root._cachedConfigYaml);
                 for (let k = 0; k < configTopics.length; k++) {
                     selectedSet[configTopics[k]] = true;
                 }
@@ -866,9 +867,8 @@ Popup {
 
             // Populate throttle rules from config YAML (only on first load,
             // i.e. when throttleModel is still empty)
-            if (throttleModel.count === 0 && root.recorderInterface && root.recorderInterface.status) {
-                let throttleMap = _parseThrottleConfigs(
-                    root.recorderInterface.status.config_yaml || "");
+            if (throttleModel.count === 0 && root._cachedConfigYaml) {
+                let throttleMap = _parseThrottleConfigs(root._cachedConfigYaml);
                 for (let topic in throttleMap) {
                     let th = throttleMap[topic];
                     throttleModel.append({
