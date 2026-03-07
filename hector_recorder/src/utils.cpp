@@ -946,8 +946,9 @@ void handleApplyConfig( std::unique_ptr<RecorderImpl> &recorder, CustomOptions &
       createAndStartRecorder( recorder, storage_options, record_options, custom_options, node );
       RCLCPP_INFO( node->get_logger(), "Config applied and recording restarted." );
     } else if ( was_recording ) {
-      // Hot update: update topic filter and restart discovery to pick up new topics
+      // Hot update: update topic filter, throttle configs, and restart discovery
       recorder->update_record_options( record_options );
+      recorder->update_throttle_configs( custom_options.topic_throttle );
       RCLCPP_INFO( node->get_logger(), "Config applied, new topics will be added to current bag." );
     }
 

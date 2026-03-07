@@ -252,6 +252,20 @@ void RecorderImpl::update_record_options( const rosbag2_transport::RecordOptions
       record_options_.topics.size(), subscriptions_.size());
 }
 
+void RecorderImpl::update_throttle_configs( const ThrottleConfigMap &new_configs )
+{
+  std::lock_guard<std::mutex> lock(throttle_mutex_);
+  throttle_configs_ = new_configs;
+  // Clear stale state for topics no longer throttled
+  for (auto it = throttle_states_.begin(); it != throttle_states_.end(); ) {
+    if (new_configs.find(it->first) == new_configs.end()) {
+      it = throttle_states_.erase(it);
+    } else {
+      ++it;
+    }
+  }
+}
+
 void RecorderImpl::start_discovery()
 {
   std::lock_guard<std::mutex> state_lock(discovery_mutex_);

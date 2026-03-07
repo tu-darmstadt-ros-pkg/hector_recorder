@@ -65,6 +65,11 @@ Rectangle {
                 }
             }
 
+            if (changed) {
+                // Reassign to trigger QML binding re-evaluation for currentInterface
+                recorderInterfaces = recorderInterfaces;
+            }
+
             if (changed || recorderTopics.length !== topics.length) {
                 recorderTopics = topics;
             }
@@ -128,10 +133,14 @@ Rectangle {
                 Layout.fillWidth: true
                 model: d.recorderTopics
 
-                Component.onCompleted: {
+                // Keep currentIndex in sync when model or selection changes
+                function _syncIndex() {
                     let idx = d.recorderTopics.indexOf(context.selectedRecorder);
                     if (idx >= 0) currentIndex = idx;
                 }
+
+                Component.onCompleted: _syncIndex()
+                onModelChanged: _syncIndex()
 
                 onActivated: function(index) {
                     if (index >= 0 && index < d.recorderTopics.length) {

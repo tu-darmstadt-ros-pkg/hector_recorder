@@ -102,6 +102,9 @@ public:
   /// Update record options and restart topic discovery to pick up new topics.
   void update_record_options( const rosbag2_transport::RecordOptions &new_options );
 
+  /// Update throttle configs live (thread-safe).
+  void update_throttle_configs( const ThrottleConfigMap &new_configs );
+
   /// Start discovery
   void start_discovery();
 

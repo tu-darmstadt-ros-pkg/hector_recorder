@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Controls.Material
 import QtQuick.Layouts
 import RQml.Elements
 import RQml.Fonts
@@ -35,6 +36,9 @@ Popup {
 
     //! Cached lowercase filter text (debounced)
     property string _filterText: ""
+
+    //! Revision counter to force badge re-evaluation on throttle edits
+    property int _throttleRev: 0
 
     background: Rectangle {
         color: palette.window
@@ -230,8 +234,9 @@ Popup {
                     model: ListModel { id: topicListModel }
 
                     delegate: Rectangle {
+                        id: topicDelegate
                         width: topicListView.width
-                        height: visible ? 30 : 0
+                        height: visible ? 36 : 0
                         visible: {
                             return root._filterText.length === 0 ||
                                    model.topicName.toLowerCase().indexOf(root._filterText) >= 0;
@@ -259,11 +264,67 @@ Popup {
                                 opacity: allTopicsCheck.checked ? 0.5 : 1.0
                             }
 
+                            // Throttle badge
+                            Rectangle {
+                                id: throttleBadge
+                                // Reference throttleModel.count to re-evaluate when rules change
+                                property var _th: { throttleModel.count; root._throttleRev; return root._getThrottle(model.topicName); }
+                                Layout.preferredWidth: Math.max(badgeLabel.implicitWidth + 14, 28)
+                                Layout.preferredHeight: 22
+                                Layout.alignment: Qt.AlignVCenter
+                                radius: 10
+                                color: {
+                                    if (!_th) return "transparent";
+                                    return Qt.rgba(Material.color(Material.Orange).r,
+                                                   Material.color(Material.Orange).g,
+                                                   Material.color(Material.Orange).b, 0.2);
+                                }
+                                border.color: {
+                                    if (badgeMouseArea.containsMouse)
+                                        return Material.color(Material.Orange);
+                                    return _th ? Qt.rgba(Material.color(Material.Orange).r,
+                                                         Material.color(Material.Orange).g,
+                                                         Material.color(Material.Orange).b, 0.6)
+                                               : Qt.rgba(palette.mid.r, palette.mid.g, palette.mid.b, 0.4);
+                                }
+                                border.width: 1
+
+                                Label {
+                                    id: badgeLabel
+                                    anchors.centerIn: parent
+                                    font.pixelSize: 10
+                                    font.bold: !!throttleBadge._th
+                                    color: throttleBadge._th ? Material.color(Material.Orange) : palette.mid
+                                    text: {
+                                        let th = throttleBadge._th;
+                                        if (!th) return "\u23F1"; // stopwatch
+                                        if (th.throttleType === "messages")
+                                            return th.rate + " msg/s";
+                                        return (th.bytes / 1000).toFixed(0) + " kB/s";
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: badgeMouseArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        root._openThrottlePopup(model.topicName, throttleBadge);
+                                    }
+                                }
+
+                                ToolTip {
+                                    visible: badgeMouseArea.containsMouse
+                                    text: throttleBadge._th ? "Edit throttle" : "Add throttle"
+                                }
+                            }
+
                             Label {
                                 text: model.topicType
                                 color: palette.mid
                                 font.pixelSize: 11
-                                Layout.preferredWidth: 200
+                                Layout.preferredWidth: 180
                                 elide: Text.ElideRight
                                 opacity: allTopicsCheck.checked ? 0.5 : 1.0
                             }
@@ -284,7 +345,124 @@ Popup {
                         for (let i = 0; i < topicListModel.count; i++) {
                             if (topicListModel.get(i).selected) count++;
                         }
-                        return count + " of " + topicListModel.count + " topics selected";
+                        let s = count + " of " + topicListModel.count + " topics selected";
+                        if (throttleModel.count > 0)
+                            s += ", " + throttleModel.count + " throttled";
+                        return s;
+                    }
+                }
+
+                // Hidden model for throttle rules
+                ListModel { id: throttleModel }
+
+                // Throttle edit popup (reused for all topics)
+                Popup {
+                    id: throttlePopup
+                    width: 280
+                    height: throttlePopupContent.implicitHeight + 32
+                    padding: 12
+                    modal: false
+                    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+                    property string topicName: ""
+
+                    background: Rectangle {
+                        color: palette.window
+                        border.color: palette.mid
+                        radius: 6
+                        layer.enabled: true
+                    }
+
+                    ColumnLayout {
+                        id: throttlePopupContent
+                        anchors.fill: parent
+                        spacing: 8
+
+                        Label {
+                            text: throttlePopup.topicName
+                            font.bold: true
+                            font.pixelSize: 11
+                            elide: Text.ElideMiddle
+                            Layout.fillWidth: true
+                        }
+
+                        RowLayout {
+                            spacing: 8
+                            Label { text: "Type:" }
+                            ComboBox {
+                                id: popupTypeCombo
+                                Layout.fillWidth: true
+                                model: ["msgs/s", "bytes/s"]
+                            }
+                        }
+
+                        RowLayout {
+                            spacing: 8
+                            Label { text: popupTypeCombo.currentIndex === 0 ? "Rate:" : "Limit:" }
+                            TextField {
+                                id: popupValueField
+                                Layout.fillWidth: true
+                                validator: DoubleValidator { bottom: 0 }
+                            }
+                            Label {
+                                text: popupTypeCombo.currentIndex === 0 ? "msgs/s" : "B/s"
+                                color: palette.mid
+                                font.pixelSize: 11
+                            }
+                        }
+
+                        RowLayout {
+                            spacing: 8
+                            visible: popupTypeCombo.currentIndex === 1
+                            Label { text: "Window:" }
+                            TextField {
+                                id: popupWindowField
+                                Layout.fillWidth: true
+                                validator: DoubleValidator { bottom: 0.01 }
+                            }
+                            Label {
+                                text: "s"
+                                color: palette.mid
+                                font.pixelSize: 11
+                            }
+                        }
+
+                        RowLayout {
+                            spacing: 8
+
+                            Button {
+                                text: "Remove"
+                                flat: true
+                                visible: root._getThrottle(throttlePopup.topicName) !== null
+                                onClicked: {
+                                    root._removeThrottle(throttlePopup.topicName);
+                                    throttlePopup.close();
+                                }
+                            }
+
+                            Item { Layout.fillWidth: true }
+
+                            Button {
+                                text: "Cancel"
+                                flat: true
+                                onClicked: throttlePopup.close()
+                            }
+
+                            Button {
+                                text: "OK"
+                                highlighted: true
+                                onClicked: {
+                                    let type = popupTypeCombo.currentIndex === 0 ? "messages" : "bytes";
+                                    let val = parseFloat(popupValueField.text) || 0;
+                                    let win = parseFloat(popupWindowField.text) || 1.0;
+                                    root._setThrottle(throttlePopup.topicName, type,
+                                        type === "messages" ? val : 10.0,
+                                        type === "bytes" ? val : 1000000,
+                                        win);
+                                    throttlePopup.close();
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -412,6 +590,69 @@ Popup {
     // Internal Functions
     // ========================================================================
 
+    //! Look up throttle config for a topic, returns object or null
+    function _getThrottle(topicName) {
+        for (let i = 0; i < throttleModel.count; i++) {
+            if (throttleModel.get(i).topic === topicName)
+                return throttleModel.get(i);
+        }
+        return null;
+    }
+
+    //! Set or update throttle for a topic
+    function _setThrottle(topicName, type, rate, bytes, window) {
+        for (let i = 0; i < throttleModel.count; i++) {
+            if (throttleModel.get(i).topic === topicName) {
+                throttleModel.set(i, {
+                    topic: topicName, throttleType: type,
+                    rate: rate, bytes: bytes, window: window
+                });
+                _throttleRev++;
+                return;
+            }
+        }
+        throttleModel.append({
+            topic: topicName, throttleType: type,
+            rate: rate, bytes: bytes, window: window
+        });
+        _throttleRev++;
+    }
+
+    //! Remove throttle for a topic
+    function _removeThrottle(topicName) {
+        for (let i = 0; i < throttleModel.count; i++) {
+            if (throttleModel.get(i).topic === topicName) {
+                throttleModel.remove(i);
+                _throttleRev++;
+                return;
+            }
+        }
+    }
+
+    //! Open the throttle edit popup for a topic, anchored near the badge
+    function _openThrottlePopup(topicName, anchor) {
+        throttlePopup.topicName = topicName;
+        let th = _getThrottle(topicName);
+        if (th) {
+            popupTypeCombo.currentIndex = th.throttleType === "bytes" ? 1 : 0;
+            popupValueField.text = th.throttleType === "messages"
+                ? String(th.rate) : String(th.bytes);
+            popupWindowField.text = String(th.window);
+        } else {
+            popupTypeCombo.currentIndex = 0;
+            popupValueField.text = "10";
+            popupWindowField.text = "1.0";
+        }
+        // Position near the anchor — Popup coords are relative to its visual parent
+        let parentItem = throttlePopup.parent;
+        if (parentItem) {
+            let pos = anchor.mapToItem(parentItem, 0, anchor.height);
+            throttlePopup.x = pos.x - throttlePopup.width + anchor.width;
+            throttlePopup.y = pos.y + 4;
+        }
+        throttlePopup.open();
+    }
+
     //! Returns the YAML from the active tab (topic selector or text editor)
     function _getActiveYaml() {
         if (tabBar.currentIndex === 0) {
@@ -448,6 +689,23 @@ Popup {
         lines.push("rmw_serialization_format: \"cdr\"");
         lines.push("publish_status: " + (publishStatusCheck.checked ? "true" : "false"));
         lines.push("publish_status_topic: \"recorder_status\"");
+
+        // Throttle configs
+        if (throttleModel.count > 0) {
+            lines.push("topic_throttle:");
+            for (let k = 0; k < throttleModel.count; k++) {
+                let item = throttleModel.get(k);
+                lines.push("  \"" + item.topic + "\":");
+                if (item.throttleType === "messages") {
+                    lines.push("    type: \"messages\"");
+                    lines.push("    msgs_per_sec: " + item.rate);
+                } else {
+                    lines.push("    type: \"bytes\"");
+                    lines.push("    bytes_per_sec: " + item.bytes);
+                    lines.push("    window: " + item.window);
+                }
+            }
+        }
 
         return lines.join("\n") + "\n";
     }
@@ -496,6 +754,20 @@ Popup {
             topicListModel.setProperty(j, "selected",
                 yamlTopics.indexOf(name) >= 0);
         }
+
+        // Populate throttle rules
+        let throttleMap = _parseThrottleConfigs(yaml);
+        throttleModel.clear();
+        for (let topic in throttleMap) {
+            let th = throttleMap[topic];
+            throttleModel.append({
+                topic: topic,
+                throttleType: th.type,
+                rate: th.rate,
+                bytes: th.bytes,
+                window: th.window
+            });
+        }
     }
 
     //! Extract the topics list from a YAML string
@@ -521,6 +793,58 @@ Popup {
         return topics;
     }
 
+    //! Parse topic_throttle section from YAML into a map of topic -> {type, rate, bytes, window}
+    function _parseThrottleConfigs(yaml) {
+        let result = {};
+        let lines = yaml.split("\n");
+        let inThrottle = false;
+        let currentTopic = "";
+
+        for (let i = 0; i < lines.length; i++) {
+            let line = lines[i];
+
+            if (line.match(/^topic_throttle:\s*$/)) {
+                inThrottle = true;
+                continue;
+            }
+
+            if (!inThrottle) continue;
+
+            // New top-level key means we left the throttle section
+            if (line.length > 0 && line[0] !== ' ' && line[0] !== '\t') {
+                break;
+            }
+
+            // Topic name line (2-space indent): "  "/topic":"
+            let topicMatch = line.match(/^\s{2}"?([^":]+)"?:\s*$/);
+            if (topicMatch) {
+                currentTopic = topicMatch[1];
+                result[currentTopic] = { type: "messages", rate: 10.0, bytes: 1000000, window: 1.0 };
+                continue;
+            }
+
+            if (!currentTopic) continue;
+
+            // type
+            let m = line.match(/^\s+type:\s*"?(\w+)"?/);
+            if (m) { result[currentTopic].type = m[1]; continue; }
+
+            // msgs_per_sec
+            m = line.match(/^\s+msgs_per_sec:\s*([\d.]+)/);
+            if (m) { result[currentTopic].rate = parseFloat(m[1]); continue; }
+
+            // bytes_per_sec
+            m = line.match(/^\s+bytes_per_sec:\s*([\d.]+)/);
+            if (m) { result[currentTopic].bytes = parseFloat(m[1]); continue; }
+
+            // window
+            m = line.match(/^\s+window:\s*([\d.]+)/);
+            if (m) { result[currentTopic].window = parseFloat(m[1]); continue; }
+        }
+
+        return result;
+    }
+
     //! Fetch available topics from the recorder and populate the list
     function _fetchAvailableTopics() {
         if (!root.recorderInterface) return;
@@ -544,11 +868,29 @@ Popup {
 
             topicListModel.clear();
             for (let j = 0; j < topics.length; j++) {
+                let name = topics[j].name;
                 topicListModel.append({
-                    topicName: topics[j].name,
+                    topicName: name,
                     topicType: topics[j].type,
-                    selected: selectedSet[topics[j].name] === true
+                    selected: selectedSet[name] === true
                 });
+            }
+
+            // Populate throttle rules from config YAML (only on first load,
+            // i.e. when throttleModel is still empty)
+            if (throttleModel.count === 0 && root.recorderInterface && root.recorderInterface.status) {
+                let throttleMap = _parseThrottleConfigs(
+                    root.recorderInterface.status.config_yaml || "");
+                for (let topic in throttleMap) {
+                    let th = throttleMap[topic];
+                    throttleModel.append({
+                        topic: topic,
+                        throttleType: th.type,
+                        rate: th.rate,
+                        bytes: th.bytes,
+                        window: th.window
+                    });
+                }
             }
         });
     }
