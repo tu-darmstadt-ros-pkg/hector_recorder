@@ -2,6 +2,7 @@
 #include "hector_recorder/modified/recorder_impl.hpp"
 #include "rosbag2_cpp/writer.hpp"
 #include "rosbag2_cpp/writers/sequential_writer.hpp"
+#include "rosbag2_storage/metadata_io.hpp"
 #include <filesystem>
 #include <fstream>
 
@@ -839,6 +840,11 @@ void fillRecorderStatus( hector_recorder_msgs::msg::RecorderStatus &status_msg,
   // Current config as YAML (use raw base path so restarts resolve fresh directories)
   status_msg.config_yaml =
       serializeConfigToYaml( custom_options, record_options, storage_options, raw_output_uri );
+
+  // Hostname and recorded_by
+  status_msg.hostname = getHostname();
+  status_msg.recorded_by =
+      custom_options.recorded_by.empty() ? getDefaultRecordedBy() : custom_options.recorded_by;
 }
 
 static void createAndStartRecorder( std::unique_ptr<RecorderImpl> &recorder,
@@ -874,6 +880,11 @@ void handleStartRecording( std::unique_ptr<RecorderImpl> &recorder,
     } else {
       storage_options.uri = resolveOutputDirectory( raw_output_uri );
     }
+
+    // Store recorded_by in bag custom_data so it persists in metadata.yaml
+    std::string recorded_by =
+        custom_options.recorded_by.empty() ? getDefaultRecordedBy() : custom_options.recorded_by;
+    storage_options.custom_data["recorded_by"] = recorded_by;
 
     createAndStartRecorder( recorder, storage_options, record_options, custom_options, node );
     out_success = true;
@@ -1008,6 +1019,199 @@ void handleGetAvailableTopics( rclcpp::Node *node, std::vector<std::string> &out
       type_str += types[i];
     }
     out_types.push_back( type_str );
+  }
+}
+
+std::string getHostname()
+{
+  char hostname[256];
+  if ( gethostname( hostname, sizeof( hostname ) ) == 0 ) {
+    return std::string( hostname );
+  }
+  return "unknown";
+}
+
+std::string getDefaultRecordedBy()
+{
+  std::string user;
+  const char *env_user = std::getenv( "USER" );
+  if ( env_user ) {
+    user = env_user;
+  } else {
+    user = "unknown";
+  }
+  return user + "@" + getHostname();
+}
+
+// ========================================================================
+// Bag browsing service handlers
+// ========================================================================
+
+/// Compute total size of all files in a directory (non-recursive into subdirs of bags)
+static uint64_t directorySize( const fs::path &dir )
+{
+  uint64_t total = 0;
+  std::error_code ec;
+  for ( const auto &entry : fs::recursive_directory_iterator( dir, ec ) ) {
+    if ( entry.is_regular_file( ec ) ) {
+      total += entry.file_size( ec );
+    }
+  }
+  return total;
+}
+
+/// Read a BagInfo from a bag directory using its metadata.yaml
+static bool readBagInfo( const fs::path &bag_dir, hector_recorder_msgs::msg::BagInfo &info )
+{
+  rosbag2_storage::MetadataIo metadata_io;
+  if ( !metadata_io.metadata_file_exists( bag_dir.string() ) ) {
+    return false;
+  }
+
+  try {
+    auto metadata = metadata_io.read_metadata( bag_dir.string() );
+
+    info.name = bag_dir.filename().string();
+    info.path = bag_dir.string();
+    info.size_bytes = directorySize( bag_dir );
+    info.storage_id = metadata.storage_identifier;
+    info.topic_count = static_cast<uint32_t>( metadata.topics_with_message_count.size() );
+    info.message_count = static_cast<uint32_t>( metadata.message_count );
+    info.duration_secs =
+        std::chrono::duration<double>( metadata.duration ).count();
+
+    // Format start time as ISO 8601
+    auto start_ns = metadata.starting_time.time_since_epoch();
+    auto start_sec = std::chrono::duration_cast<std::chrono::seconds>( start_ns );
+    std::time_t start_time_t = start_sec.count();
+    std::tm lt{};
+    localtime_r( &start_time_t, &lt );
+    char buf[64];
+    std::strftime( buf, sizeof( buf ), "%Y-%m-%dT%H:%M:%S", &lt );
+    info.start_time = std::string( buf );
+
+    // Read recorded_by from custom_data if available
+    auto it = metadata.custom_data.find( "recorded_by" );
+    if ( it != metadata.custom_data.end() ) {
+      info.recorded_by = it->second;
+    }
+
+    return true;
+  } catch ( const std::exception & ) {
+    return false;
+  }
+}
+
+void handleListBags( const std::string &path,
+                     const rosbag2_storage::StorageOptions &storage_options,
+                     std::vector<hector_recorder_msgs::msg::BagInfo> &out_bags,
+                     bool &out_success, std::string &out_message )
+{
+  std::string scan_dir = path.empty() ? storage_options.uri : path;
+
+  // Resolve ~ and env vars
+  scan_dir = resolveOutputUriToAbsolute( scan_dir );
+
+  // If the path itself is a bag, go up to its parent
+  rosbag2_storage::MetadataIo metadata_io;
+  if ( metadata_io.metadata_file_exists( scan_dir ) ) {
+    scan_dir = fs::path( scan_dir ).parent_path().string();
+  }
+
+  if ( !fs::is_directory( scan_dir ) ) {
+    out_success = false;
+    out_message = "Path is not a directory: " + scan_dir;
+    return;
+  }
+
+  std::error_code ec;
+  for ( const auto &entry : fs::directory_iterator( scan_dir, ec ) ) {
+    if ( !entry.is_directory( ec ) )
+      continue;
+
+    hector_recorder_msgs::msg::BagInfo info;
+    if ( readBagInfo( entry.path(), info ) ) {
+      out_bags.push_back( std::move( info ) );
+    }
+  }
+
+  // Sort by start_time descending (newest first)
+  std::sort( out_bags.begin(), out_bags.end(),
+             []( const auto &a, const auto &b ) { return a.start_time > b.start_time; } );
+
+  out_success = true;
+  out_message = "Found " + std::to_string( out_bags.size() ) + " bags in " + scan_dir;
+}
+
+void handleGetBagDetails( const std::string &bag_path,
+                          hector_recorder_msgs::msg::BagInfo &out_info,
+                          std::vector<hector_recorder_msgs::msg::BagTopicInfo> &out_topics,
+                          bool &out_success, std::string &out_message )
+{
+  if ( !readBagInfo( bag_path, out_info ) ) {
+    out_success = false;
+    out_message = "Failed to read bag metadata from: " + bag_path;
+    return;
+  }
+
+  // Read per-topic details
+  try {
+    rosbag2_storage::MetadataIo metadata_io;
+    auto metadata = metadata_io.read_metadata( bag_path );
+
+    for ( const auto &topic_info : metadata.topics_with_message_count ) {
+      hector_recorder_msgs::msg::BagTopicInfo ti;
+      ti.name = topic_info.topic_metadata.name;
+      ti.type = topic_info.topic_metadata.type;
+      ti.message_count = topic_info.message_count;
+      ti.serialization_format = topic_info.topic_metadata.serialization_format;
+      out_topics.push_back( std::move( ti ) );
+    }
+
+    out_success = true;
+    out_message = "OK";
+  } catch ( const std::exception &e ) {
+    out_success = false;
+    out_message = std::string( "Failed to read bag details: " ) + e.what();
+  }
+}
+
+void handleDeleteBag( const std::string &bag_path, bool confirm,
+                      bool &out_success, std::string &out_message )
+{
+  if ( !confirm ) {
+    out_success = false;
+    out_message = "Delete not confirmed. Set confirm=true to actually delete.";
+    return;
+  }
+
+  if ( !fs::is_directory( bag_path ) ) {
+    out_success = false;
+    out_message = "Not a directory: " + bag_path;
+    return;
+  }
+
+  // Safety: only delete if it contains a metadata.yaml (i.e., it's a rosbag)
+  rosbag2_storage::MetadataIo metadata_io;
+  if ( !metadata_io.metadata_file_exists( bag_path ) ) {
+    out_success = false;
+    out_message = "Not a valid rosbag directory (no metadata.yaml): " + bag_path;
+    return;
+  }
+
+  try {
+    std::error_code ec;
+    auto removed = fs::remove_all( bag_path, ec );
+    if ( ec ) {
+      out_success = false;
+      out_message = "Failed to delete: " + ec.message();
+    } else {
+      out_success = true;
+      out_message = "Deleted " + bag_path + " (" + std::to_string( removed ) + " files removed)";
+    }
+  } catch ( const std::exception &e ) {
+    out_success = false;
+    out_message = std::string( "Failed to delete bag: " ) + e.what();
   }
 }
 

@@ -25,9 +25,6 @@ Popup {
     //! Saved config names array (from PresetStore)
     property var savedConfigNames: []
 
-    //! Path for saving to recorder filesystem
-    property string remoteFilePath: ""
-
     //! Signal when a config is saved locally
     signal configSaved(string name, string yaml)
 
@@ -515,30 +512,6 @@ Popup {
             }
         }
 
-        // ---- Remote Save Row ----
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 8
-
-            Label { text: "Save to recorder:" }
-
-            TextField {
-                id: remotePathField
-                Layout.fillWidth: true
-                placeholderText: "/path/on/recorder/config.yaml"
-                text: root.remoteFilePath
-            }
-
-            Button {
-                text: "Save to File"
-                enabled: remotePathField.text.length > 0 && root.recorderInterface
-                onClicked: {
-                    root.recorderInterface.saveConfigToFile(
-                        _getActiveYaml(), remotePathField.text);
-                }
-            }
-        }
-
         // ---- Action Buttons ----
         RowLayout {
             Layout.fillWidth: true
@@ -577,7 +550,7 @@ Popup {
             Connections {
                 target: root.recorderInterface
                 function onServiceResponse(name, success, message) {
-                    if (name === "config" || name === "save_config") {
+                    if (name === "config") {
                         statusLabel.text = (success ? "\u2713 " : "\u2717 ") + message;
                         statusLabel.color = success ? "green" : "red";
                     }

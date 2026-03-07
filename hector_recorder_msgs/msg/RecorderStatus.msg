@@ -13,3 +13,5 @@ uint8 RECORDING=1
 uint8 PAUSED=2
 string[] available_topics           # All discoverable topics on the ROS graph
 string config_yaml                  # Current active YAML config as string
+string hostname                     # Hostname of the machine running the recorder
+string recorded_by                  # Who is recording (e.g. "alice@robot-pc")

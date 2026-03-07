@@ -14,6 +14,8 @@ find_package(builtin_interfaces REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/RecorderStatus.msg"
   "msg/TopicInfo.msg"
+  "msg/BagInfo.msg"
+  "msg/BagTopicInfo.msg"
   "srv/StartRecording.srv"
   "srv/StopRecording.srv"
   "srv/PauseRecording.srv"
@@ -22,6 +24,9 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/ApplyConfig.srv"
   "srv/SaveConfig.srv"
   "srv/GetAvailableTopics.srv"
+  "srv/ListBags.srv"
+  "srv/GetBagDetails.srv"
+  "srv/DeleteBag.srv"
   DEPENDENCIES std_msgs builtin_interfaces)
 
 ament_export_dependencies(rosidl_default_runtime)

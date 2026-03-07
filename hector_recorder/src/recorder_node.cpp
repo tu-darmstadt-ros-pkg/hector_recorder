@@ -51,6 +51,18 @@ RecorderNode::RecorderNode( const CustomOptions &custom_options,
       "~/get_available_topics",
       std::bind( &RecorderNode::onGetAvailableTopics, this, std::placeholders::_1,
                  std::placeholders::_2 ) );
+  list_bags_srv_ = this->create_service<hector_recorder_msgs::srv::ListBags>(
+      "~/list_bags",
+      std::bind( &RecorderNode::onListBags, this, std::placeholders::_1,
+                 std::placeholders::_2 ) );
+  get_bag_details_srv_ = this->create_service<hector_recorder_msgs::srv::GetBagDetails>(
+      "~/get_bag_details",
+      std::bind( &RecorderNode::onGetBagDetails, this, std::placeholders::_1,
+                 std::placeholders::_2 ) );
+  delete_bag_srv_ = this->create_service<hector_recorder_msgs::srv::DeleteBag>(
+      "~/delete_bag",
+      std::bind( &RecorderNode::onDeleteBag, this, std::placeholders::_1,
+                 std::placeholders::_2 ) );
 
   RCLCPP_INFO( this->get_logger(), "Headless recorder node ready. Waiting for commands..." );
 
@@ -187,4 +199,35 @@ void RecorderNode::onGetAvailableTopics(
     std::shared_ptr<hector_recorder_msgs::srv::GetAvailableTopics::Response> response )
 {
   handleGetAvailableTopics( this, response->topics, response->types );
+}
+
+void RecorderNode::onListBags(
+    const std::shared_ptr<hector_recorder_msgs::srv::ListBags::Request> request,
+    std::shared_ptr<hector_recorder_msgs::srv::ListBags::Response> response )
+{
+  std::string path = request->path;
+  if ( path.empty() ) {
+    std::lock_guard<std::mutex> lock( data_mutex_ );
+    // Use the base output directory (unresolved, i.e. the parent where bags are created)
+    path = raw_output_uri_;
+  }
+  handleListBags( path, storage_options_, response->bags, response->success, response->message );
+}
+
+void RecorderNode::onGetBagDetails(
+    const std::shared_ptr<hector_recorder_msgs::srv::GetBagDetails::Request> request,
+    std::shared_ptr<hector_recorder_msgs::srv::GetBagDetails::Response> response )
+{
+  handleGetBagDetails( request->bag_path, response->info, response->topics, response->success,
+                       response->message );
+}
+
+void RecorderNode::onDeleteBag(
+    const std::shared_ptr<hector_recorder_msgs::srv::DeleteBag::Request> request,
+    std::shared_ptr<hector_recorder_msgs::srv::DeleteBag::Response> response )
+{
+  handleDeleteBag( request->bag_path, request->confirm, response->success, response->message );
+  if ( response->success ) {
+    RCLCPP_INFO( this->get_logger(), "Deleted bag: %s", request->bag_path.c_str() );
+  }
 }

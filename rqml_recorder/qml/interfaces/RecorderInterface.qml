@@ -58,6 +58,15 @@ QtObject {
     property var availableTopicsClient: recorderNamespace
         ? Ros2.createServiceClient(recorderNamespace + "/get_available_topics",
             "hector_recorder_msgs/srv/GetAvailableTopics") : null
+    property var listBagsClient: recorderNamespace
+        ? Ros2.createServiceClient(recorderNamespace + "/list_bags",
+            "hector_recorder_msgs/srv/ListBags") : null
+    property var getBagDetailsClient: recorderNamespace
+        ? Ros2.createServiceClient(recorderNamespace + "/get_bag_details",
+            "hector_recorder_msgs/srv/GetBagDetails") : null
+    property var deleteBagClient: recorderNamespace
+        ? Ros2.createServiceClient(recorderNamespace + "/delete_bag",
+            "hector_recorder_msgs/srv/DeleteBag") : null
 
     // ========================================================================
     // Signals
@@ -144,6 +153,72 @@ QtObject {
                 }
                 callback(result);
             }
+        });
+    }
+
+    function listBags(path, callback) {
+        if (!listBagsClient) return;
+        listBagsClient.sendRequestAsync({path: path || ""}, function(response) {
+            if (!response) return;
+            if (!response.success) {
+                serviceResponse("list_bags", false, response.message);
+                return;
+            }
+            if (callback) {
+                let bags = [];
+                for (let i = 0; i < response.bags.length; i++) {
+                    let b = response.bags.at(i);
+                    bags.push({
+                        name: b.name || "",
+                        path: b.path || "",
+                        sizeBytes: Number(b.size_bytes) || 0,
+                        startTime: b.start_time || "",
+                        durationSecs: Number(b.duration_secs) || 0,
+                        topicCount: Number(b.topic_count) || 0,
+                        messageCount: Number(b.message_count) || 0,
+                        recordedBy: b.recorded_by || "",
+                        storageId: b.storage_id || ""
+                    });
+                }
+                callback(bags);
+            }
+        });
+    }
+
+    function getBagDetails(bagPath, callback) {
+        if (!getBagDetailsClient) return;
+        getBagDetailsClient.sendRequestAsync({bag_path: bagPath}, function(response) {
+            if (!response) return;
+            if (!response.success) {
+                serviceResponse("get_bag_details", false, response.message);
+                return;
+            }
+            if (callback) {
+                let topics = [];
+                for (let i = 0; i < response.topics.length; i++) {
+                    let t = response.topics.at(i);
+                    topics.push({
+                        name: t.name || "",
+                        type: t.type || "",
+                        messageCount: Number(t.message_count) || 0,
+                        serializationFormat: t.serialization_format || ""
+                    });
+                }
+                callback(response.info, topics);
+            }
+        });
+    }
+
+    function deleteBag(bagPath, callback) {
+        if (!deleteBagClient) return;
+        deleteBagClient.sendRequestAsync({
+            bag_path: bagPath,
+            confirm: true
+        }, function(response) {
+            let success = response ? response.success : false;
+            let message = response ? response.message : "No response";
+            serviceResponse("delete_bag", success, message);
+            if (callback) callback(success, message);
         });
     }
 

@@ -3,6 +3,8 @@
 #include "rosbag2_transport/recorder.hpp"
 
 #include "hector_recorder/throttle_config.hpp"
+#include "hector_recorder_msgs/msg/bag_info.hpp"
+#include "hector_recorder_msgs/msg/bag_topic_info.hpp"
 #include "hector_recorder_msgs/msg/recorder_status.hpp"
 #include "hector_recorder_msgs/msg/topic_info.hpp"
 
@@ -34,6 +36,7 @@ struct CustomOptions {
   std::string status_topic = "recorder_status";
   bool publish_status;
   ThrottleConfigMap topic_throttle;
+  std::string recorded_by; // e.g. "alice@robot-pc", defaults to $USER@hostname
 };
 
 std::string getAbsolutePath( const std::string &path );
@@ -111,5 +114,27 @@ void handleSaveConfig( const std::string &config_yaml, const std::string &file_p
 /// Handle GetAvailableTopics service: query node for all topics.
 void handleGetAvailableTopics( rclcpp::Node *node, std::vector<std::string> &out_topics,
                                std::vector<std::string> &out_types );
+
+/// Handle ListBags service: scan directory for rosbag2 bags.
+void handleListBags( const std::string &path,
+                     const rosbag2_storage::StorageOptions &storage_options,
+                     std::vector<hector_recorder_msgs::msg::BagInfo> &out_bags,
+                     bool &out_success, std::string &out_message );
+
+/// Handle GetBagDetails service: read per-topic info from a bag.
+void handleGetBagDetails( const std::string &bag_path,
+                          hector_recorder_msgs::msg::BagInfo &out_info,
+                          std::vector<hector_recorder_msgs::msg::BagTopicInfo> &out_topics,
+                          bool &out_success, std::string &out_message );
+
+/// Handle DeleteBag service: delete a bag directory.
+void handleDeleteBag( const std::string &bag_path, bool confirm,
+                      bool &out_success, std::string &out_message );
+
+/// Get the default recorded_by string ($USER@hostname).
+std::string getDefaultRecordedBy();
+
+/// Get the machine hostname.
+std::string getHostname();
 
 } // namespace hector_recorder
