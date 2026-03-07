@@ -7,8 +7,8 @@ import "../utils.js" as Utils
 
 /**
  * Browser pane for recorded bag files.
- * Shows a table of bags with expandable per-topic details,
- * transfer (rsync pull) and delete functionality.
+ * Shows a table of bags on the left. Clicking a row slides in a
+ * detail panel on the right showing per-topic information.
  */
 Rectangle {
     id: root
@@ -21,13 +21,18 @@ Rectangle {
     //! Bag list model populated from ListBags service
     property ListModel bagModel: ListModel {}
 
-    //! Currently expanded bag index (-1 = none)
-    property int expandedIndex: -1
+    //! Currently selected bag index (-1 = none)
+    property int selectedIndex: -1
 
-    //! Per-topic details for the expanded bag
+    //! Per-topic details for the selected bag
     property ListModel detailModel: ListModel {}
 
     signal statusMessage(string msg, bool isError)
+
+    //! Current sort column key
+    property string sortColumn: "startTime"
+    //! true = ascending, false = descending
+    property bool sortAscending: false
 
     // ========================================================================
     // Public API
@@ -40,7 +45,8 @@ Rectangle {
             for (let i = 0; i < bags.length; i++) {
                 bagModel.append(bags[i]);
             }
-            expandedIndex = -1;
+            _sortBagModel();
+            selectedIndex = -1;
             detailModel.clear();
         });
     }
@@ -81,60 +87,39 @@ Rectangle {
             }
         }
 
-        // Column headers
-        Rectangle {
-            Layout.fillWidth: true
-            height: 28
-            color: palette.button
-            radius: 2
-
-            RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: 8
-                anchors.rightMargin: 8
-                spacing: 4
-
-                Label { text: "Name";       font.bold: true; font.pixelSize: 11; Layout.preferredWidth: 200; Layout.fillWidth: true }
-                Label { text: "Date";       font.bold: true; font.pixelSize: 11; Layout.preferredWidth: 140 }
-                Label { text: "Size";       font.bold: true; font.pixelSize: 11; Layout.preferredWidth: 70; horizontalAlignment: Text.AlignRight }
-                Label { text: "Topics";     font.bold: true; font.pixelSize: 11; Layout.preferredWidth: 50; horizontalAlignment: Text.AlignRight }
-                Label { text: "Recorded By"; font.bold: true; font.pixelSize: 11; Layout.preferredWidth: 120 }
-                Label { text: "Actions";    font.bold: true; font.pixelSize: 11; Layout.preferredWidth: 100; horizontalAlignment: Text.AlignHCenter }
-            }
-        }
-
-        // Bag list
-        ListView {
-            id: bagListView
+        // Main content: bag list + detail panel side by side
+        RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            model: bagModel
-            clip: true
-            spacing: 1
+            spacing: 0
 
-            delegate: Column {
-                width: bagListView.width
+            // Left side: bag list
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                spacing: 0
 
-                // Main bag row
+                // Column headers (clickable for sorting)
                 Rectangle {
-                    width: parent.width
-                    height: 36
-                    color: index === root.expandedIndex ? Qt.darker(palette.highlight, 1.8) :
-                           (bagRowMouse.containsMouse ? palette.midlight : palette.base)
+                    Layout.fillWidth: true
+                    height: 28
+                    color: palette.button
                     radius: 2
 
-                    MouseArea {
-                        id: bagRowMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        onClicked: {
-                            if (root.expandedIndex === index) {
-                                root.expandedIndex = -1;
-                                root.detailModel.clear();
-                            } else {
-                                root.expandedIndex = index;
-                                _loadDetails(model.path);
-                            }
+                    component SortableHeader: Label {
+                        property string sortKey: ""
+                        property string label: ""
+                        text: label + (sortKey && root.sortColumn === sortKey
+                              ? (root.sortAscending ? " \u25B2" : " \u25BC") : "")
+                        font.bold: true
+                        font.pixelSize: 11
+                        color: root.sortColumn === sortKey ? palette.highlight : palette.text
+
+                        MouseArea {
+                            anchors.fill: parent
+                            enabled: sortKey !== ""
+                            cursorShape: sortKey ? Qt.PointingHandCursor : Qt.ArrowCursor
+                            onClicked: _toggleSort(sortKey)
                         }
                     }
 
@@ -144,148 +129,267 @@ Rectangle {
                         anchors.rightMargin: 8
                         spacing: 4
 
-                        // Expand indicator
-                        Label {
-                            text: index === root.expandedIndex ? "\u25BC" : "\u25B6"
-                            font.pixelSize: 10
-                            color: palette.mid
-                            Layout.preferredWidth: 12
-                        }
+                        SortableHeader { label: "Name";       sortKey: "name";       Layout.preferredWidth: 200; Layout.fillWidth: true }
+                        SortableHeader { label: "Date";       sortKey: "startTime";  Layout.preferredWidth: 140 }
+                        SortableHeader { label: "Size";       sortKey: "sizeBytes";  Layout.preferredWidth: 70; horizontalAlignment: Text.AlignRight }
+                        Label          { text: "Topics";     font.bold: true; font.pixelSize: 11; Layout.preferredWidth: 50; horizontalAlignment: Text.AlignRight }
+                        SortableHeader { label: "Recorded By"; sortKey: "recordedBy"; Layout.preferredWidth: 120 }
+                        Label          { text: "Actions";    font.bold: true; font.pixelSize: 11; Layout.preferredWidth: 100; horizontalAlignment: Text.AlignHCenter }
+                    }
+                }
 
-                        Label {
-                            text: model.name
-                            elide: Text.ElideRight
-                            font.pixelSize: 12
-                            Layout.preferredWidth: 188
-                            Layout.fillWidth: true
-                        }
+                // Bag list
+                ListView {
+                    id: bagListView
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    model: bagModel
+                    clip: true
+                    spacing: 1
 
-                        Label {
-                            text: model.startTime
-                            font.pixelSize: 11
-                            color: palette.mid
-                            Layout.preferredWidth: 140
-                        }
+                    delegate: Rectangle {
+                        width: bagListView.width
+                        height: 36
+                        color: index === root.selectedIndex ? Qt.darker(palette.highlight, 1.8) :
+                               (bagRowMouse.containsMouse ? palette.midlight : palette.base)
+                        radius: 2
 
-                        Label {
-                            text: _formatBytes(model.sizeBytes)
-                            font.pixelSize: 11
-                            horizontalAlignment: Text.AlignRight
-                            Layout.preferredWidth: 70
-                        }
-
-                        Label {
-                            text: model.topicCount
-                            font.pixelSize: 11
-                            horizontalAlignment: Text.AlignRight
-                            Layout.preferredWidth: 50
-                        }
-
-                        Label {
-                            text: model.recordedBy
-                            font.pixelSize: 11
-                            elide: Text.ElideRight
-                            color: palette.mid
-                            Layout.preferredWidth: 120
-                        }
-
-                        // Action buttons
-                        RowLayout {
-                            Layout.preferredWidth: 100
-                            spacing: 4
-
-                            Button {
-                                text: "\uD83D\uDCE5"  // inbox tray (download)
-                                font.pixelSize: 16
-                                flat: true
-                                padding: 2
-                                implicitWidth: 36
-                                implicitHeight: 36
-                                ToolTip.text: "Transfer to local machine"
-                                ToolTip.visible: hovered
-                                onClicked: {
-                                    _startTransfer(model.path, model.name);
+                        MouseArea {
+                            id: bagRowMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            onClicked: {
+                                if (root.selectedIndex === index) {
+                                    root.selectedIndex = -1;
+                                    root.detailModel.clear();
+                                } else {
+                                    root.selectedIndex = index;
+                                    _loadDetails(model.path);
                                 }
                             }
+                        }
 
-                            Button {
-                                text: "\uD83D\uDDD1"  // wastebasket (delete)
-                                font.pixelSize: 16
-                                flat: true
-                                padding: 2
-                                implicitWidth: 36
-                                implicitHeight: 36
-                                ToolTip.text: "Delete bag"
-                                ToolTip.visible: hovered
-                                onClicked: {
-                                    deleteConfirmDialog.bagPath = model.path;
-                                    deleteConfirmDialog.bagName = model.name;
-                                    deleteConfirmDialog.open();
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 8
+                            spacing: 4
+
+                            Label {
+                                text: model.name
+                                elide: Text.ElideRight
+                                font.pixelSize: 12
+                                Layout.preferredWidth: 200
+                                Layout.fillWidth: true
+                            }
+
+                            Label {
+                                text: model.startTime
+                                font.pixelSize: 11
+                                color: palette.mid
+                                Layout.preferredWidth: 140
+                            }
+
+                            Label {
+                                text: _formatBytes(model.sizeBytes)
+                                font.pixelSize: 11
+                                horizontalAlignment: Text.AlignRight
+                                Layout.preferredWidth: 70
+                            }
+
+                            Label {
+                                text: model.topicCount
+                                font.pixelSize: 11
+                                horizontalAlignment: Text.AlignRight
+                                Layout.preferredWidth: 50
+                            }
+
+                            Label {
+                                text: model.recordedBy
+                                font.pixelSize: 11
+                                elide: Text.ElideRight
+                                color: palette.mid
+                                Layout.preferredWidth: 120
+                            }
+
+                            // Action buttons
+                            RowLayout {
+                                Layout.preferredWidth: 100
+                                spacing: 4
+
+                                Button {
+                                    text: "\uD83D\uDCE5"  // inbox tray (download)
+                                    font.pixelSize: 16
+                                    flat: true
+                                    padding: 2
+                                    implicitWidth: 36
+                                    implicitHeight: 36
+                                    ToolTip.text: "Transfer to local machine"
+                                    ToolTip.visible: hovered
+                                    onClicked: {
+                                        _startTransfer(model.path, model.name);
+                                    }
+                                }
+
+                                Button {
+                                    text: "\uD83D\uDDD1"  // wastebasket (delete)
+                                    font.pixelSize: 16
+                                    flat: true
+                                    padding: 2
+                                    implicitWidth: 36
+                                    implicitHeight: 36
+                                    ToolTip.text: "Delete bag"
+                                    ToolTip.visible: hovered
+                                    onClicked: {
+                                        deleteConfirmDialog.bagPath = model.path;
+                                        deleteConfirmDialog.bagName = model.name;
+                                        deleteConfirmDialog.open();
+                                    }
                                 }
                             }
                         }
                     }
                 }
 
-                // Expanded detail section
+                // Empty state
+                Label {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: bagModel.count === 0
+                    visible: bagModel.count === 0
+                    text: "No bags found. Click Refresh to scan."
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    color: palette.mid
+                    font.italic: true
+                }
+            }
+
+            // Right side: detail panel (slides in when a bag is selected)
+            Rectangle {
+                id: detailPanel
+                Layout.fillHeight: true
+                Layout.preferredWidth: root.selectedIndex >= 0 ? 414 : 0
+                color: Qt.darker(palette.base, 1.05)
+                clip: true
+                visible: Layout.preferredWidth > 0
+
+                Behavior on Layout.preferredWidth {
+                    NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
+                }
+
+                // Subtle left border
                 Rectangle {
-                    width: parent.width
-                    height: index === root.expandedIndex ? detailColumn.implicitHeight + 16 : 0
-                    visible: index === root.expandedIndex
-                    color: Qt.darker(palette.base, 1.1)
-                    clip: true
+                    width: 1
+                    anchors.left: parent.left
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    color: palette.mid
+                    opacity: 0.3
+                }
 
-                    Behavior on height { NumberAnimation { duration: 150 } }
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 8
+                    spacing: 4
 
-                    ColumnLayout {
-                        id: detailColumn
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.top: parent.top
-                        anchors.margins: 8
-                        spacing: 2
+                    // Panel header with bag name and close button
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 4
 
-                        // Duration info
                         Label {
-                            property var _bag: index >= 0 && index < bagModel.count ? bagModel.get(index) : null
-                            text: _bag ? "Duration: " + _formatDuration(_bag.durationSecs)
-                                + "  |  Messages: " + _bag.messageCount : ""
-                            font.pixelSize: 11
-                            color: palette.mid
-                        }
-
-                        // Detail table header
-                        RowLayout {
+                            text: root.selectedIndex >= 0 && root.selectedIndex < bagModel.count
+                                  ? bagModel.get(root.selectedIndex).name : ""
+                            font.bold: true
+                            font.pixelSize: 12
+                            elide: Text.ElideRight
                             Layout.fillWidth: true
-                            spacing: 4
-                            Layout.topMargin: 4
-
-                            Label { text: "Topic"; font.bold: true; font.pixelSize: 10; Layout.preferredWidth: 250; Layout.fillWidth: true }
-                            Label { text: "Type"; font.bold: true; font.pixelSize: 10; Layout.preferredWidth: 200 }
-                            Label { text: "Messages"; font.bold: true; font.pixelSize: 10; Layout.preferredWidth: 80; horizontalAlignment: Text.AlignRight }
                         }
 
-                        Repeater {
-                            model: root.detailModel
-
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 4
-
-                                Label { text: model.name; font.pixelSize: 10; elide: Text.ElideMiddle; Layout.preferredWidth: 250; Layout.fillWidth: true }
-                                Label { text: model.type; font.pixelSize: 10; elide: Text.ElideRight; color: palette.mid; Layout.preferredWidth: 200 }
-                                Label { text: model.messageCount; font.pixelSize: 10; horizontalAlignment: Text.AlignRight; Layout.preferredWidth: 80 }
+                        Button {
+                            text: "\u2715"
+                            font.pixelSize: 12
+                            flat: true
+                            padding: 2
+                            implicitWidth: 24
+                            implicitHeight: 24
+                            onClicked: {
+                                root.selectedIndex = -1;
+                                root.detailModel.clear();
                             }
                         }
+                    }
 
-                        // Loading indicator
-                        Label {
-                            visible: root.detailModel.count === 0 && root.expandedIndex >= 0
-                            text: "Loading..."
-                            font.pixelSize: 10
-                            font.italic: true
-                            color: palette.mid
+                    // Bag summary
+                    Label {
+                        property var _bag: root.selectedIndex >= 0 && root.selectedIndex < bagModel.count
+                                           ? bagModel.get(root.selectedIndex) : null
+                        text: _bag ? "Duration: " + _formatDuration(_bag.durationSecs)
+                              + "  |  Messages: " + _bag.messageCount : ""
+                        font.pixelSize: 11
+                        color: palette.mid
+                    }
+
+                    // Separator
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 1
+                        color: palette.mid
+                        opacity: 0.3
+                    }
+
+                    // Topic detail table header
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 4
+
+                        Label { text: "Topic"; font.bold: true; font.pixelSize: 12; Layout.fillWidth: true }
+                        Label { text: "Type"; font.bold: true; font.pixelSize: 12; Layout.preferredWidth: 120 }
+                        Label { text: "Msgs"; font.bold: true; font.pixelSize: 12; Layout.preferredWidth: 50; horizontalAlignment: Text.AlignRight }
+                    }
+
+                    // Topic list
+                    ListView {
+                        id: detailListView
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        model: root.detailModel
+                        clip: true
+                        spacing: 1
+
+                        delegate: RowLayout {
+                            width: detailListView.width
+                            spacing: 4
+
+                            Label {
+                                text: model.name
+                                font.pixelSize: 12
+                                elide: Text.ElideMiddle
+                                Layout.fillWidth: true
+                            }
+                            Label {
+                                text: model.type
+                                font.pixelSize: 12
+                                elide: Text.ElideRight
+                                color: palette.mid
+                                Layout.preferredWidth: 120
+                            }
+                            Label {
+                                text: model.messageCount
+                                font.pixelSize: 12
+                                horizontalAlignment: Text.AlignRight
+                                Layout.preferredWidth: 50
+                            }
                         }
+                    }
+
+                    // Loading indicator
+                    Label {
+                        visible: root.detailModel.count === 0 && root.selectedIndex >= 0
+                        text: "Loading..."
+                        font.pixelSize: 10
+                        font.italic: true
+                        color: palette.mid
                     }
                 }
             }
@@ -325,18 +429,6 @@ Rectangle {
                     onClicked: bagTransfer.cancel()
                 }
             }
-        }
-
-        // Empty state
-        Label {
-            Layout.fillWidth: true
-            Layout.fillHeight: bagModel.count === 0
-            visible: bagModel.count === 0
-            text: "No bags found. Click Refresh to scan."
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-            color: palette.mid
-            font.italic: true
         }
     }
 
@@ -515,6 +607,48 @@ Rectangle {
 
     function _getDefaultTransferDir() {
         return "/tmp/bags/";
+    }
+
+    function _toggleSort(column) {
+        if (root.sortColumn === column) {
+            root.sortAscending = !root.sortAscending;
+        } else {
+            root.sortColumn = column;
+            // Default descending for size/date, ascending for text columns
+            root.sortAscending = (column === "name" || column === "recordedBy");
+        }
+        _sortBagModel();
+    }
+
+    /// Sorts bagModel in-place using insertion sort (ListModel has no built-in sort)
+    function _sortBagModel() {
+        let n = bagModel.count;
+        if (n < 2) return;
+
+        selectedIndex = -1;
+        detailModel.clear();
+
+        for (let i = 1; i < n; i++) {
+            let j = i;
+            while (j > 0 && _compareBags(bagModel.get(j - 1), bagModel.get(j)) > 0) {
+                bagModel.move(j, j - 1, 1);
+                j--;
+            }
+        }
+    }
+
+    /// Returns positive if a should come after b in current sort order
+    function _compareBags(a, b) {
+        let key = root.sortColumn;
+        let va = a[key], vb = b[key];
+
+        let cmp;
+        if (typeof va === "number") {
+            cmp = va - vb;
+        } else {
+            cmp = String(va).localeCompare(String(vb));
+        }
+        return root.sortAscending ? cmp : -cmp;
     }
 
     function _formatBytes(bytes) { return Utils.formatBytes(bytes); }
