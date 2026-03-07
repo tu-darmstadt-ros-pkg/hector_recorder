@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Controls.Material
 import QtQuick.Layouts
 import RqmlRecorder
+import "../utils.js" as Utils
 
 /**
  * Browser pane for recorded bag files.
@@ -516,17 +517,6 @@ Rectangle {
         return "/tmp/bags/";
     }
 
-    function _formatBytes(bytes) {
-        if (bytes < 1024) return bytes + " B";
-        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
-        if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + " MB";
-        return (bytes / (1024 * 1024 * 1024)).toFixed(1) + " GB";
-    }
-
-    function _formatDuration(secs) {
-        let s = Math.round(secs);
-        let mins = Math.floor(s / 60);
-        let hrs = Math.floor(mins / 60);
-        return hrs + ":" + String(mins % 60).padStart(2, '0') + ":" + String(s % 60).padStart(2, '0');
-    }
+    function _formatBytes(bytes) { return Utils.formatBytes(bytes); }
+    function _formatDuration(secs) { return Utils.formatDuration(secs); }
 }

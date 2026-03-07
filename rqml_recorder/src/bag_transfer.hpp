@@ -1,4 +1,5 @@
-#pragma once
+#ifndef RQML_RECORDER_BAG_TRANSFER_HPP
+#define RQML_RECORDER_BAG_TRANSFER_HPP
 
 #include <QObject>
 #include <QProcess>
@@ -55,3 +56,5 @@ private:
   QString statusText_;
   QString localPath_;
 };
+
+#endif // RQML_RECORDER_BAG_TRANSFER_HPP

@@ -3,7 +3,7 @@
 <package format="3">
   <name>hector_recorder_msgs</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>Message and service definitions for hector_recorder</description>
   <maintainer email="lichtenfeld@sim.tu-darmstadt.de">Jonathan Lichtenfeld</maintainer>
   <license>Apache-2.0</license>
 

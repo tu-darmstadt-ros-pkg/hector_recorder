@@ -634,7 +634,11 @@ Popup {
         return configTextArea.text;
     }
 
-    //! Build YAML string from the topic selector UI
+    /**
+     * Build a YAML config string from the current topic selector UI state.
+     * Combines output path, storage_id, topic selections, and throttle rules.
+     * @return {string} YAML config string
+     */
     function _buildYamlFromTopicSelector() {
         let lines = [];
         lines.push("node_name: \"hector_recorder\"");
@@ -692,7 +696,12 @@ Popup {
         }
     }
 
-    //! Simple YAML parser to populate the topic selector from a YAML string
+    /**
+     * Parse a YAML config string and populate the topic selector UI.
+     * Extracts: output path, storage_id, all_topics, publish_status,
+     * topic selections, and throttle rules.
+     * @param {string} yaml - YAML config text to parse
+     */
     function _parseYamlToTopicSelector(yaml) {
         let lines = yaml.split("\n");
 
@@ -766,7 +775,13 @@ Popup {
         return topics;
     }
 
-    //! Parse topic_throttle section from YAML into a map of topic -> {type, rate, bytes, window}
+    /**
+     * Parse the topic_throttle section from a YAML config string.
+     * Recognizes 2-space-indented topic keys under "topic_throttle:",
+     * each with type/msgs_per_sec/bytes_per_sec/window sub-keys.
+     * @param {string} yaml - YAML config text
+     * @return {Object} Map of topic name -> {type, rate, bytes, window}
+     */
     function _parseThrottleConfigs(yaml) {
         let result = {};
         let lines = yaml.split("\n");

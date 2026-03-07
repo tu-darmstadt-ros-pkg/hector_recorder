@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HECTOR_RECORDER_UTILS_H
+#define HECTOR_RECORDER_UTILS_H
 
 #include "rosbag2_transport/recorder.hpp"
 
@@ -14,7 +15,7 @@
 #include <filesystem>
 #include <fmt/chrono.h>
 #include <fmt/core.h>
-#include <limits.h>
+#include <climits>
 #include <rclcpp/qos.hpp>
 #include <regex>
 #include <stdexcept>
@@ -138,3 +139,5 @@ std::string getDefaultRecordedBy();
 std::string getHostname();
 
 } // namespace hector_recorder
+
+#endif // HECTOR_RECORDER_UTILS_H

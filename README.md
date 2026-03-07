@@ -6,7 +6,7 @@ A terminal UI for recording ROS2 bags (strongly inspired by [rosbag_fancy](https
 
 Some of its features:
 - Per-topic throttling by frequency or bandwidth (via config)
-- Sort by message count, topic type, frequency, bandwith, duration, disk size...
+- Sort by message count, topic type, frequency, bandwidth, duration, disk size...
 - Adaptive display based on terminal window size
 - Same arguments as ```rosbag2``` ```(ros2 bag record)```
 - Colors indicate 'no msgs received' (yellow) and 'no publisher' (red)
@@ -96,6 +96,9 @@ Both the TUI and headless modes expose these services under the node namespace (
 | `~/apply_config` | `ApplyConfig` | Apply a new YAML config (optionally restart) |
 | `~/save_config` | `SaveConfig` | Save a config YAML to a file on the recorder's filesystem |
 | `~/get_available_topics` | `GetAvailableTopics` | List all topics on the ROS graph |
+| `~/list_bags` | `ListBags` | List recorded bags in the output directory |
+| `~/get_bag_details` | `GetBagDetails` | Get per-topic info for a bag |
+| `~/delete_bag` | `DeleteBag` | Delete a bag directory (requires confirmation) |
 
 Example:
 ```bash
@@ -168,4 +171,4 @@ This project includes components from:
 - [rosbag2](https://github.com/ros2/rosbag2)
 - [topic_tools](https://github.com/ros-tooling/topic_tools)
 - [CLI11](https://github.com/CLIUtils/CLI11) by Henry Schreiner (BSD-3-Clause)
-- [rqml] (https://github.com/StefanFabian/rqml)
+- [rqml](https://github.com/StefanFabian/rqml)

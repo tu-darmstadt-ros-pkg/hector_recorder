@@ -1,4 +1,5 @@
-#pragma once
+#ifndef RQML_RECORDER_PRESET_STORE_HPP
+#define RQML_RECORDER_PRESET_STORE_HPP
 
 #include <QObject>
 #include <QStringList>
@@ -34,3 +35,5 @@ private:
   std::filesystem::path presetDir() const;
   std::filesystem::path presetPath( const QString &name ) const;
 };
+
+#endif // RQML_RECORDER_PRESET_STORE_HPP

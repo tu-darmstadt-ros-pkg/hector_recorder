@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HECTOR_RECORDER_THROTTLE_CONFIG_HPP
+#define HECTOR_RECORDER_THROTTLE_CONFIG_HPP
 
 #include <deque>
 #include <mutex>
@@ -32,3 +33,5 @@ struct ThrottleState {
 using ThrottleConfigMap = std::unordered_map<std::string, ThrottleConfig>;
 
 } // namespace hector_recorder
+
+#endif // HECTOR_RECORDER_THROTTLE_CONFIG_HPP

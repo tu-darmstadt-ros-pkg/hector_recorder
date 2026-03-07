@@ -285,11 +285,6 @@ std::unordered_map<std::string, rclcpp::QoS> load_qos_overrides_from_file( const
   return convert_yaml_to_qos_overrides( root );
 }
 
-/**
- * @brief Formats memory size in human-readable units (B, KiB, MiB, etc.).
- * @param bytes The memory size in bytes.
- * @return A formatted string representing the memory size.
- */
 std::string formatMemory( uint64_t bytes )
 {
   if ( bytes < ( 1ull << 10 ) )
@@ -304,11 +299,6 @@ std::string formatMemory( uint64_t bytes )
     return fmt::format( "{:.1f} TiB", static_cast<double>( bytes ) / ( 1ull << 40 ) );
 }
 
-/**
- * @brief Converts a frequency value to a human-readable string (Hz, kHz, MHz).
- * @param rate The frequency in Hz.
- * @return A formatted string representing the frequency.
- */
 std::string rateToString( double rate )
 {
   if ( rate < 1000.0 )
@@ -319,11 +309,6 @@ std::string rateToString( double rate )
     return fmt::format( "{:.1f} MHz", rate / 1e6 );
 }
 
-/**
- * @brief Converts a bytes per second to a human-readable string (B/s, KB/s, MB/s).
- * @param bandwidth The bandwidth in bytes per second.
- * @return A formatted string representing the bandwidth.
- */
 std::string bandwidthToString( double bandwidth )
 {
   if ( bandwidth < 1000.0 )
@@ -749,7 +734,8 @@ static std::string expandUserAndEnv( std::string s )
     // (If "~user" needed, implement lookup; omitted for simplicity.)
   }
 
-  // ${VAR} → env, then $VAR → env
+  // Walk through regex matches, replacing each captured variable name (capture group 1)
+  // with its environment value. Text between matches is copied verbatim.
   auto replace_env = []( const std::string &in, const std::regex &re ) {
     std::string out;
     std::sregex_iterator it( in.begin(), in.end(), re ), end;

@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Material
 import QtQuick.Layouts
+import "../utils.js" as Utils
 
 /**
  * Sortable table displaying per-topic recording statistics.
@@ -91,23 +92,9 @@ Rectangle {
     // Formatting Helpers
     // ========================================================================
 
-    function formatBytes(bytes) {
-        if (bytes < 1024) return bytes + " B";
-        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
-        if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + " MB";
-        return (bytes / (1024 * 1024 * 1024)).toFixed(1) + " GB";
-    }
-
-    function formatBandwidth(bps) {
-        if (bps < 1000) return bps.toFixed(0) + " B/s";
-        if (bps < 1000000) return (bps / 1000).toFixed(1) + " kB/s";
-        return (bps / 1000000).toFixed(1) + " MB/s";
-    }
-
-    function formatFreq(hz) {
-        if (hz < 1000) return hz.toFixed(1) + " Hz";
-        return (hz / 1000).toFixed(1) + " kHz";
-    }
+    function formatBytes(bytes) { return Utils.formatBytes(bytes); }
+    function formatBandwidth(bps) { return Utils.formatBandwidth(bps); }
+    function formatFreq(hz) { return Utils.formatFreq(hz); }
 
     // ========================================================================
     // UI

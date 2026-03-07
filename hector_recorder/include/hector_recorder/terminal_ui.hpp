@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HECTOR_RECORDER_TERMINAL_UI_HPP
+#define HECTOR_RECORDER_TERMINAL_UI_HPP
 
 #include "hector_recorder/modified/recorder_impl.hpp"
 #include "hector_recorder/utils.h"
@@ -12,6 +13,9 @@
 #include "hector_recorder_msgs/srv/split_bag.hpp"
 #include "hector_recorder_msgs/srv/start_recording.hpp"
 #include "hector_recorder_msgs/srv/stop_recording.hpp"
+#include "hector_recorder_msgs/srv/list_bags.hpp"
+#include "hector_recorder_msgs/srv/get_bag_details.hpp"
+#include "hector_recorder_msgs/srv/delete_bag.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rosbag2_cpp/writers/sequential_writer.hpp"
 #include "rosbag2_storage/storage_options.hpp"
@@ -80,6 +84,15 @@ private:
   void onGetAvailableTopics(
       const std::shared_ptr<hector_recorder_msgs::srv::GetAvailableTopics::Request>,
       std::shared_ptr<hector_recorder_msgs::srv::GetAvailableTopics::Response> response );
+  void onListBags(
+      const std::shared_ptr<hector_recorder_msgs::srv::ListBags::Request> request,
+      std::shared_ptr<hector_recorder_msgs::srv::ListBags::Response> response );
+  void onGetBagDetails(
+      const std::shared_ptr<hector_recorder_msgs::srv::GetBagDetails::Request> request,
+      std::shared_ptr<hector_recorder_msgs::srv::GetBagDetails::Response> response );
+  void onDeleteBag(
+      const std::shared_ptr<hector_recorder_msgs::srv::DeleteBag::Request> request,
+      std::shared_ptr<hector_recorder_msgs::srv::DeleteBag::Response> response );
 
   std::unique_ptr<hector_recorder::RecorderImpl> recorder_;
   CustomOptions custom_options_;
@@ -112,6 +125,9 @@ private:
   rclcpp::Service<hector_recorder_msgs::srv::ApplyConfig>::SharedPtr config_srv_;
   rclcpp::Service<hector_recorder_msgs::srv::SaveConfig>::SharedPtr save_config_srv_;
   rclcpp::Service<hector_recorder_msgs::srv::GetAvailableTopics>::SharedPtr topics_srv_;
+  rclcpp::Service<hector_recorder_msgs::srv::ListBags>::SharedPtr list_bags_srv_;
+  rclcpp::Service<hector_recorder_msgs::srv::GetBagDetails>::SharedPtr get_bag_details_srv_;
+  rclcpp::Service<hector_recorder_msgs::srv::DeleteBag>::SharedPtr delete_bag_srv_;
 
   WINDOW *generalInfoWin_;
   WINDOW *tableWin_;
@@ -123,3 +139,4 @@ std::string bandwidthToString( double bandwidth );
 
 } // namespace hector_recorder
 
+#endif // HECTOR_RECORDER_TERMINAL_UI_HPP

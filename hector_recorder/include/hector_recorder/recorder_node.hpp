@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HECTOR_RECORDER_RECORDER_NODE_HPP
+#define HECTOR_RECORDER_RECORDER_NODE_HPP
 
 #include "hector_recorder/modified/recorder_impl.hpp"
 #include "hector_recorder/utils.h"
@@ -103,3 +104,5 @@ private:
 };
 
 } // namespace hector_recorder
+
+#endif // HECTOR_RECORDER_RECORDER_NODE_HPP

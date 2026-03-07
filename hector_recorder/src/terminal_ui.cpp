@@ -30,10 +30,8 @@ using namespace hector_recorder;
 
 namespace
 {
-// Innerwidth (without borders)
 inline int interior_width( WINDOW *win ) { return getmaxx( win ) - 2; }
 
-// Column gap: total columns added between two printed columns.
 constexpr int kColumnGap = 3;
 inline int sep_offset() { return ( kColumnGap / 2 ) + 1; }
 
@@ -265,10 +263,8 @@ void TerminalUI::updateTable()
 
   const auto &topics_info = recorder_->get_topics_info();
   max_width_ = getmaxx( tableWin_ );
-  ui_topics_max_length_ =
-      static_cast<int>( max_width_ * 0.3 ); // topic name should not exceed 30% of the window width
-  ui_topics_type_max_length_ =
-      static_cast<int>( max_width_ * 0.2 ); // topic type should not exceed 20% of the window width
+  ui_topics_max_length_ = static_cast<int>( max_width_ * 0.3 );
+  ui_topics_type_max_length_ = static_cast<int>( max_width_ * 0.2 );
   row_ = 1;
 
   if ( topics_info.empty() ) {
@@ -634,6 +630,18 @@ void TerminalUI::initializeServices()
       "~/get_available_topics",
       std::bind( &TerminalUI::onGetAvailableTopics, this, std::placeholders::_1,
                  std::placeholders::_2 ) );
+  list_bags_srv_ = this->create_service<hector_recorder_msgs::srv::ListBags>(
+      "~/list_bags",
+      std::bind( &TerminalUI::onListBags, this, std::placeholders::_1,
+                 std::placeholders::_2 ) );
+  get_bag_details_srv_ = this->create_service<hector_recorder_msgs::srv::GetBagDetails>(
+      "~/get_bag_details",
+      std::bind( &TerminalUI::onGetBagDetails, this, std::placeholders::_1,
+                 std::placeholders::_2 ) );
+  delete_bag_srv_ = this->create_service<hector_recorder_msgs::srv::DeleteBag>(
+      "~/delete_bag",
+      std::bind( &TerminalUI::onDeleteBag, this, std::placeholders::_1,
+                 std::placeholders::_2 ) );
 }
 
 void TerminalUI::onStartRecording(
@@ -737,6 +745,38 @@ void TerminalUI::onGetAvailableTopics(
     std::shared_ptr<hector_recorder_msgs::srv::GetAvailableTopics::Response> response )
 {
   handleGetAvailableTopics( this, response->topics, response->types );
+}
+
+void TerminalUI::onListBags(
+    const std::shared_ptr<hector_recorder_msgs::srv::ListBags::Request> request,
+    std::shared_ptr<hector_recorder_msgs::srv::ListBags::Response> response )
+{
+  std::string path = request->path;
+  if ( path.empty() ) {
+    std::lock_guard<std::mutex> lock( data_mutex_ );
+    // storage_options_.uri points to the current bag directory (e.g. .../bags/rosbag2_<stamp>).
+    // For listing, we want its parent (the directory containing all bags).
+    path = fs::path( storage_options_.uri ).parent_path().string();
+  }
+  handleListBags( path, storage_options_, response->bags, response->success, response->message );
+}
+
+void TerminalUI::onGetBagDetails(
+    const std::shared_ptr<hector_recorder_msgs::srv::GetBagDetails::Request> request,
+    std::shared_ptr<hector_recorder_msgs::srv::GetBagDetails::Response> response )
+{
+  handleGetBagDetails( request->bag_path, response->info, response->topics, response->success,
+                       response->message );
+}
+
+void TerminalUI::onDeleteBag(
+    const std::shared_ptr<hector_recorder_msgs::srv::DeleteBag::Request> request,
+    std::shared_ptr<hector_recorder_msgs::srv::DeleteBag::Response> response )
+{
+  handleDeleteBag( request->bag_path, request->confirm, response->success, response->message );
+  if ( response->success ) {
+    RCLCPP_INFO( this->get_logger(), "Deleted bag: %s", request->bag_path.c_str() );
+  }
 }
 
 void TerminalUI::publishRecorderStatus()

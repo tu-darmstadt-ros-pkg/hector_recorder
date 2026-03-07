@@ -8,6 +8,7 @@ import RQml.Fonts
 import RqmlRecorder
 import "interfaces"
 import "elements"
+import "utils.js" as Utils
 
 /**
  * RQML plugin for controlling and monitoring hector_recorder instances.
@@ -85,20 +86,8 @@ Rectangle {
             _updateCurrentInterface();
         }
 
-        function formatBytes(bytes) {
-            if (bytes < 1024) return bytes + " B";
-            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
-            if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + " MB";
-            return (bytes / (1024 * 1024 * 1024)).toFixed(1) + " GB";
-        }
-
-        function formatDuration(duration) {
-            let secs = duration ? (duration.sec || 0) : 0;
-            let mins = Math.floor(secs / 60);
-            let hrs = Math.floor(mins / 60);
-            return hrs + ":" + String(mins % 60).padStart(2, '0') + ":"
-                   + String(secs % 60).padStart(2, '0');
-        }
+        function formatBytes(bytes) { return Utils.formatBytes(bytes); }
+        function formatDuration(duration) { return Utils.formatDuration(duration); }
     }
 
     Component {
