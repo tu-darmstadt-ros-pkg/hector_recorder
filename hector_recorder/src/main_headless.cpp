@@ -1,7 +1,7 @@
 #include "CLI11.hpp"
 #include "hector_recorder/arg_parser.hpp"
 #include "hector_recorder/recorder_node.hpp"
-#include "hector_recorder/utils.h"
+#include "hector_recorder/config_yaml.h"
 #include "rclcpp/rclcpp.hpp"
 #include <string>
 #include <vector>

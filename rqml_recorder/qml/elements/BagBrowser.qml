@@ -34,7 +34,7 @@ Rectangle {
 
     onRecorderInterfaceChanged: {
         _cachedHostname = "";
-        if (recorderInterface) {
+        if (recorderInterface && recorderInterface.supportsTransfer) {
             recorderInterface.fetchRecorderInfo(function(info) {
                 root._cachedHostname = info.hostname;
             });
@@ -238,11 +238,12 @@ Rectangle {
                                 spacing: 4
 
                                 Button {
+                                    visible: root.recorderInterface && root.recorderInterface.supportsTransfer
                                     text: "\uD83D\uDCE5"  // inbox tray (download)
                                     font.pixelSize: 16
                                     flat: true
                                     padding: 2
-                                    implicitWidth: 36
+                                    implicitWidth: visible ? 36 : 0
                                     implicitHeight: 36
                                     ToolTip.text: "Transfer to local machine"
                                     ToolTip.visible: hovered
@@ -252,11 +253,12 @@ Rectangle {
                                 }
 
                                 Button {
+                                    visible: root.recorderInterface && root.recorderInterface.supportsDelete
                                     text: "\uD83D\uDDD1"  // wastebasket (delete)
                                     font.pixelSize: 16
                                     flat: true
                                     padding: 2
-                                    implicitWidth: 36
+                                    implicitWidth: visible ? 36 : 0
                                     implicitHeight: 36
                                     ToolTip.text: "Delete bag"
                                     ToolTip.visible: hovered

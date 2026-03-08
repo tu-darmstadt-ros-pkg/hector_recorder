@@ -27,6 +27,8 @@
 #include <mutex>
 #include <string>
 
+class RecorderNodeTest;
+
 namespace hector_recorder
 {
 
@@ -116,6 +118,8 @@ private:
   rclcpp::Service<hector_recorder_msgs::srv::DeleteBag>::SharedPtr delete_bag_srv_;
 
   std::mutex data_mutex_;
+
+  friend class ::RecorderNodeTest;
 };
 
 } // namespace hector_recorder

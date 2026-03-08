@@ -2,7 +2,8 @@
 #include <filesystem>
 #include <fstream>
 
-#include "hector_recorder/utils.h"
+#include "hector_recorder/config_yaml.h"
+#include "hector_recorder/service_handlers.h"
 
 namespace fs = std::filesystem;
 using namespace hector_recorder;

@@ -4,3 +4,9 @@ plugins:
     group: "Recording"
     path: "share/@PROJECT_NAME@/qml/RecorderManager.qml"
     single_instance: false
+
+  - id: rqml_recorder.bag_viewer
+    name: "Bag Viewer"
+    group: "Recording"
+    path: "share/@PROJECT_NAME@/qml/BagViewer.qml"
+    single_instance: false

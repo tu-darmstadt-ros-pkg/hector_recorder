@@ -4,9 +4,13 @@ import Ros2
 /**
  * Backend interface for a single hector_recorder instance.
  * Subscribes to its status topic and provides service clients for remote control.
+ * Extends BagProviderInterface for use with BagBrowser.
  */
-QtObject {
+BagProviderInterface {
     id: root
+
+    supportsTransfer: true
+    supportsDelete: true
 
     //! Whether this interface is active
     property bool enabled: true

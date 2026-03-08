@@ -96,6 +96,9 @@ Both the TUI and headless modes expose these services under the node namespace (
 | `~/apply_config` | `ApplyConfig` | Apply a new YAML config (optionally restart) |
 | `~/save_config` | `SaveConfig` | Save a config YAML to a file on the recorder's filesystem |
 | `~/get_available_topics` | `GetAvailableTopics` | List all topics on the ROS graph |
+| `~/get_available_services` | `GetAvailableServices` | List non-infrastructure services on the ROS graph |
+| `~/get_config` | `GetConfig` | Get the current recorder config as YAML |
+| `~/get_recorder_info` | `GetRecorderInfo` | Get recorder metadata (hostname, recorded_by, config path) |
 | `~/list_bags` | `ListBags` | List recorded bags in the output directory |
 | `~/get_bag_details` | `GetBagDetails` | Get per-topic info for a bag |
 | `~/delete_bag` | `DeleteBag` | Delete a bag directory (requires confirmation) |
@@ -111,17 +114,43 @@ ros2 service call /hector_recorder/stop_recording hector_recorder_msgs/srv/StopR
 The `rqml_recorder` package provides a GUI plugin for [rqml](https://github.com/StefanFabian/rqml):
 
 ```bash
-ros2 run rqml rqml
+rqml
 # Open Plugins > Recording > Recorder Manager
 ```
 
-Features:
-- Auto-discovers all running recorder instances
+#### Multi-Recorder Discovery
+- Auto-discovers all running `hector_recorder` instances on the ROS graph
+- Dropdown to switch between multiple recorders
+- Manual refresh to find newly started recorders
+
+#### Recording Control
 - Start/stop/pause/resume/split via buttons
-- Live per-topic statistics table (sortable, color-coded)
-- YAML config editor with interactive topic selector
-- Preset management (save/load/delete configs as YAML files in `~/.ros/hector_recorder_presets/`)
-- Send configs to recorders, optionally restarting the recording
+- Start dialog with optional output directory and bag name override
+- Auto-fills `recorded_by` metadata (`$USER@hostname`) into bag `custom_data`
+- Color-coded state indicator (green = recording, orange = paused, red = idle/disconnected)
+
+#### Live Recording Status
+- Elapsed duration, total bag size, file count, topic count
+- Per-topic statistics table with live updates:
+  - Message count, frequency (Hz), bandwidth (B/s), total size, message type
+  - Publisher count, QoS reliability
+  - Throttle indicator (cyan badge)
+- Sortable by any column (click headers)
+- Color-coded rows: red = no publishers, yellow = 0 messages
+
+#### Live Configuration
+- **Interactive topic selector**: browse all available topics, toggle which to record, "all topics" switch
+- **Per-topic throttle editor**: set message-rate or bandwidth limits per topic, add/edit/remove live
+- **YAML text editor**: direct editing of the full config
+- **Apply config**: push to recorder, optionally restarting the recording
+- **Preset management**: save/load/delete named configs as YAML files in `~/.ros/hector_recorder_presets/`
+
+#### Bag Browser
+- Browse all recorded bags on the recorder's filesystem
+- Sortable table: name, start time, duration, size, topic count, recorded by
+- Per-bag detail panel: per-topic breakdown (name, type, message count)
+- **Delete bags** remotely (with confirmation)
+- **Transfer bags via rsync**: download bags to your local machine with live progress bar, cancel support, and automatic localhost detection (requires passwordless SSH setup for remote transfers)
 
 ### Examples
 - Record everything (all topics & services):
@@ -165,6 +194,21 @@ See here for all available parameters and their default values:
 - ```-o some_dir``` creates ```some_dir``` (works with absolute/relative paths)
 - If you want to have timestamped bag files in a specified log dir (useful for automatic logging), you can append a slash:
   ```-o some_dir/``` creates ```some_dir/rosbag_<stamp>```
+
+## Testing
+
+```bash
+# Build with tests
+colcon build --packages-select hector_recorder --cmake-args -DBUILD_TESTING=ON
+
+# Run all tests
+colcon test --packages-select hector_recorder
+colcon test-result --verbose
+```
+
+Tests include:
+- **test_utils**: Unit tests for utility functions (path resolution, YAML parsing, formatting)
+- **test_recorder_node**: Integration tests for the RecorderNode service layer using [rtest](https://github.com/...) (requires `rtest`, `ament_cmake_gmock`, and `libgmock-dev`; skipped if unavailable)
 
 #### Acknowledgement
 This project includes components from:

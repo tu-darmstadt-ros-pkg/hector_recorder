@@ -9,7 +9,7 @@
  */
 
 #include "hector_recorder/terminal_ui.hpp"
-#include "hector_recorder/utils.h"
+#include "hector_recorder/service_handlers.h"
 #include "rclcpp/rclcpp.hpp"
 #include "rosbag2_cpp/writers/sequential_writer.hpp"
 #include "rosbag2_storage/storage_options.hpp"
