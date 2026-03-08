@@ -3,7 +3,10 @@ project(rqml_recorder)
 
 find_package(ament_cmake REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Core Qml Network)
+find_package(rclcpp REQUIRED)
+find_package(rosbag2_cpp REQUIRED)
 find_package(rosbag2_storage REQUIRED)
+find_package(rosgraph_msgs REQUIRED)
 
 qt_standard_project_setup()
 
@@ -18,12 +21,14 @@ qt_add_qml_module(rqml_recorder_plugin
     src/bag_transfer.cpp
     src/local_bag_scanner.hpp
     src/local_bag_scanner.cpp
+    src/bag_player_engine.hpp
+    src/bag_player_engine.cpp
   OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/RqmlRecorder"
 )
 
 target_include_directories(rqml_recorder_plugin PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(rqml_recorder_plugin PRIVATE Qt6::Core Qt6::Qml Qt6::Network)
-ament_target_dependencies(rqml_recorder_plugin PUBLIC rosbag2_storage)
+ament_target_dependencies(rqml_recorder_plugin PUBLIC rclcpp rosbag2_cpp rosbag2_storage rosgraph_msgs)
 
 # Install the QML module so rqml can find it at runtime
 install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/RqmlRecorder"

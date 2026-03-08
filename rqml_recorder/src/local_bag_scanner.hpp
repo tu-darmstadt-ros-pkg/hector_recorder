@@ -23,6 +23,7 @@ class LocalBagScanner : public QObject
   Q_PROPERTY( QString scanPath READ scanPath WRITE setScanPath NOTIFY scanPathChanged )
   Q_PROPERTY( bool supportsTransfer READ supportsTransfer CONSTANT )
   Q_PROPERTY( bool supportsDelete READ supportsDelete CONSTANT )
+  Q_PROPERTY( bool supportsPlayback READ supportsPlayback CONSTANT )
 
 public:
   explicit LocalBagScanner( QObject *parent = nullptr );
@@ -32,6 +33,7 @@ public:
 
   bool supportsTransfer() const { return false; }
   bool supportsDelete() const { return true; }
+  bool supportsPlayback() const { return true; }
 
   /**
    * List bags in the scan directory. Calls callback(bags) where bags is an array

@@ -11,7 +11,10 @@
 
   <depend>rqml_core</depend>
   <depend>hector_recorder_msgs</depend>
+  <depend>rclcpp</depend>
+  <depend>rosbag2_cpp</depend>
   <depend>rosbag2_storage</depend>
+  <depend>rosgraph_msgs</depend>
 
   <build_depend>qt6-base-dev</build_depend>
   <build_depend>qt6-declarative-dev</build_depend>

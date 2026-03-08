@@ -1,12 +1,12 @@
 plugins:
   - id: rqml_recorder.recorder_manager
     name: "Recorder Manager"
-    group: "Recording"
+    group: "Bag Tools"
     path: "share/@PROJECT_NAME@/qml/RecorderManager.qml"
     single_instance: false
 
-  - id: rqml_recorder.bag_viewer
-    name: "Bag Viewer"
-    group: "Recording"
-    path: "share/@PROJECT_NAME@/qml/BagViewer.qml"
+  - id: rqml_recorder.bag_player
+    name: "Bag Player"
+    group: "Bag Tools"
+    path: "share/@PROJECT_NAME@/qml/BagPlayer.qml"
     single_instance: false

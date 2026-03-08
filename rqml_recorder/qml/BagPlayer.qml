@@ -5,23 +5,30 @@ import RqmlRecorder
 import "elements"
 
 /**
- * RQML plugin for browsing local rosbag2 files.
- * Scans a user-specified directory for bags and displays them
- * using the shared BagBrowser component.
+ * RQML plugin for browsing and playing local rosbag2 files.
+ * Combines bag browsing (BagBrowser) with embedded playback (BagPlayerEngine).
  */
 Rectangle {
     id: root
     anchors.fill: parent
-    property var kddockwidgets_min_size: Qt.size(600, 400)
+    property var kddockwidgets_min_size: Qt.size(700, 450)
     color: palette.base
 
     Component.onCompleted: {
         if (!context.bag_path)
             context.bag_path = "~/bags/";
+        // Auto-scan on startup after layout is settled
+        autoScanTimer.start();
+    }
+
+    Timer {
+        id: autoScanTimer
+        interval: 100
+        onTriggered: bagBrowser.refresh()
     }
 
     // ========================================================================
-    // Bag Scanner (filesystem-based provider)
+    // Backend components
     // ========================================================================
 
     LocalBagScanner {
@@ -35,6 +42,24 @@ Rectangle {
         }
     }
 
+    BagPlayerEngine {
+        id: playerEngine
+
+        onPlaybackFinished: {
+            statusLabel.text = "\u2713 Playback finished: " + bagName;
+            statusLabel.color = palette.mid;
+            statusResetTimer.restart();
+        }
+
+        onErrorMessageChanged: {
+            if (errorMessage) {
+                statusLabel.text = "\u2717 " + errorMessage;
+                statusLabel.color = "red";
+                statusResetTimer.restart();
+            }
+        }
+    }
+
     // ========================================================================
     // UI Layout
     // ========================================================================
@@ -44,18 +69,20 @@ Rectangle {
         anchors.margins: 8
         spacing: 8
 
-        // Header: directory selector with autocomplete
+        // --------------------------------------------------------------------
+        // Path selector with autocomplete
+        // --------------------------------------------------------------------
+
         RowLayout {
             Layout.fillWidth: true
             spacing: 8
-            z: 10  // Ensure popup renders above bag browser
+            z: 10
 
             Label {
                 text: "Bag Directory:"
                 font.bold: true
             }
 
-            // Path input with autocomplete dropdown
             Item {
                 Layout.fillWidth: true
                 implicitHeight: pathField.implicitHeight
@@ -68,9 +95,7 @@ Rectangle {
                     placeholderText: "~/bags/"
                     selectByMouse: true
 
-                    onTextEdited: {
-                        completionTimer.restart();
-                    }
+                    onTextEdited: completionTimer.restart()
 
                     onAccepted: {
                         completionPopup.close();
@@ -91,7 +116,6 @@ Rectangle {
                                 let selected = completionModel.get(completionList.currentIndex).path;
                                 pathField.text = selected;
                                 pathField.cursorPosition = pathField.text.length;
-                                // Trigger new completions for the selected directory
                                 completionTimer.restart();
                                 event.accepted = true;
                             }
@@ -101,7 +125,6 @@ Rectangle {
                         }
                     }
 
-                    // Debounce completion requests
                     Timer {
                         id: completionTimer
                         interval: 150
@@ -109,7 +132,6 @@ Rectangle {
                     }
                 }
 
-                // Completion popup
                 Popup {
                     id: completionPopup
                     y: pathField.height
@@ -123,7 +145,6 @@ Rectangle {
                         border.color: palette.mid
                         radius: 4
 
-                        // Subtle shadow
                         Rectangle {
                             anchors.fill: parent
                             anchors.margins: -1
@@ -158,7 +179,6 @@ Rectangle {
                                 pathField.text = model.path;
                                 pathField.cursorPosition = pathField.text.length;
                                 pathField.forceActiveFocus();
-                                // Trigger new completions for the selected directory
                                 completionTimer.restart();
                             }
                         }
@@ -180,7 +200,20 @@ Rectangle {
             }
         }
 
-        // Bag browser (shared component)
+        // --------------------------------------------------------------------
+        // Playback Panel (visible when a bag is loaded/playing)
+        // --------------------------------------------------------------------
+
+        PlaybackPanel {
+            id: playbackPanel
+            Layout.fillWidth: true
+            engine: playerEngine
+        }
+
+        // --------------------------------------------------------------------
+        // Bag Browser
+        // --------------------------------------------------------------------
+
         BagBrowser {
             id: bagBrowser
             Layout.fillWidth: true
@@ -192,9 +225,20 @@ Rectangle {
                 statusLabel.color = isError ? "red" : "green";
                 statusResetTimer.restart();
             }
+
+            onPlayRequested: function(bagPath, bagName) {
+                playerEngine.load(bagPath);
+                // Auto-play after loading
+                playerEngine.play([]);
+                statusLabel.text = "\u25B6 Playing: " + bagName;
+                statusLabel.color = palette.mid;
+            }
         }
 
+        // --------------------------------------------------------------------
         // Status bar
+        // --------------------------------------------------------------------
+
         Label {
             id: statusLabel
             Layout.fillWidth: true
@@ -232,7 +276,6 @@ Rectangle {
             return;
         }
 
-        // If there's exactly one match and it equals the current text, don't show popup
         if (completions.length === 1 && completions[0] === pathField.text) {
             completionPopup.close();
             return;

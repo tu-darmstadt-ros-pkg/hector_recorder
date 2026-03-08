@@ -28,6 +28,7 @@ Rectangle {
     property ListModel detailModel: ListModel {}
 
     signal statusMessage(string msg, bool isError)
+    signal playRequested(string bagPath, string bagName)
 
     //! Cached hostname from GetRecorderInfo service
     property string _cachedHostname: ""
@@ -147,7 +148,7 @@ Rectangle {
                         SortableHeader { label: "Size";       sortKey: "sizeBytes";  Layout.preferredWidth: 70; horizontalAlignment: Text.AlignRight }
                         Label          { text: "Topics";     font.bold: true; font.pixelSize: 11; Layout.preferredWidth: 50; horizontalAlignment: Text.AlignRight }
                         SortableHeader { label: "Recorded By"; sortKey: "recordedBy"; Layout.preferredWidth: 120 }
-                        Label          { text: "Actions";    font.bold: true; font.pixelSize: 11; Layout.preferredWidth: 100; horizontalAlignment: Text.AlignHCenter }
+                        Label          { text: "Actions";    font.bold: true; font.pixelSize: 11; Layout.preferredWidth: 136; horizontalAlignment: Text.AlignHCenter }
                     }
                 }
 
@@ -234,8 +235,23 @@ Rectangle {
 
                             // Action buttons
                             RowLayout {
-                                Layout.preferredWidth: 100
+                                Layout.preferredWidth: 136
                                 spacing: 4
+
+                                Button {
+                                    visible: root.recorderInterface && root.recorderInterface.supportsPlayback
+                                    text: "\u25B6"  // play triangle
+                                    font.pixelSize: 14
+                                    flat: true
+                                    padding: 2
+                                    implicitWidth: visible ? 36 : 0
+                                    implicitHeight: 36
+                                    ToolTip.text: "Play bag"
+                                    ToolTip.visible: hovered
+                                    onClicked: {
+                                        root.playRequested(model.path, model.name);
+                                    }
+                                }
 
                                 Button {
                                     visible: root.recorderInterface && root.recorderInterface.supportsTransfer

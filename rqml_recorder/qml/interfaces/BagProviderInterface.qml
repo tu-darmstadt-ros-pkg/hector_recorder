@@ -14,6 +14,9 @@ QtObject {
     //! Whether this provider supports bag deletion
     property bool supportsDelete: true
 
+    //! Whether this provider supports local playback
+    property bool supportsPlayback: false
+
     // ========================================================================
     // Required API — subclasses must override these
     // ========================================================================
