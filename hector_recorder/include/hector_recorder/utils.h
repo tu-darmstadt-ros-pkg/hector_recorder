@@ -146,6 +146,9 @@ void handleGetBagDetails( const std::string &bag_path,
 void handleDeleteBag( const std::string &bag_path, bool confirm,
                       bool &out_success, std::string &out_message );
 
+/// Check if a service name is an infrastructure service (parameters, lifecycle, etc.)
+bool isInfrastructureService( const std::string &service_name );
+
 /// Get the default recorded_by string ($USER@hostname).
 std::string getDefaultRecordedBy();
 

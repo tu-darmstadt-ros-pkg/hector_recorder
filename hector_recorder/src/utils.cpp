@@ -1009,7 +1009,7 @@ void handleGetAvailableTopics( rclcpp::Node *node, std::vector<std::string> &out
   }
 }
 
-static bool isInfrastructureService( const std::string &service_name )
+bool isInfrastructureService( const std::string &service_name )
 {
   auto pos = service_name.rfind( '/' );
   if ( pos == std::string::npos )
