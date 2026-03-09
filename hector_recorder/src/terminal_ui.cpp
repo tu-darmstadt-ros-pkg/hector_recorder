@@ -9,7 +9,7 @@
  */
 
 #include "hector_recorder/terminal_ui.hpp"
-#include "hector_recorder/utils.h"
+#include "hector_recorder/service_handlers.h"
 #include "rclcpp/rclcpp.hpp"
 #include "rosbag2_cpp/writers/sequential_writer.hpp"
 #include "rosbag2_storage/storage_options.hpp"
@@ -30,10 +30,8 @@ using namespace hector_recorder;
 
 namespace
 {
-// Innerwidth (without borders)
 inline int interior_width( WINDOW *win ) { return getmaxx( win ) - 2; }
 
-// Column gap: total columns added between two printed columns.
 constexpr int kColumnGap = 3;
 inline int sep_offset() { return ( kColumnGap / 2 ) + 1; }
 
@@ -68,7 +66,9 @@ std::atomic<bool> g_sort_desc{ true };
 TerminalUI::TerminalUI( const CustomOptions &custom_options,
                         const rosbag2_storage::StorageOptions &storage_options,
                         const rosbag2_transport::RecordOptions &record_options )
-    : Node( custom_options.node_name ), config_path_( custom_options.config_path ),
+    : Node( custom_options.node_name ), custom_options_( custom_options ),
+      raw_output_uri_( storage_options.uri ),
+      config_path_( custom_options.config_path ),
       publish_status_( custom_options.publish_status ),
       throttle_configs_( custom_options.topic_throttle )
 {
@@ -85,6 +85,7 @@ TerminalUI::TerminalUI( const CustomOptions &custom_options,
     status_pub_timer_ = this->create_wall_timer( 1s, [this]() { this->publishRecorderStatus(); } );
   }
 
+  initializeServices();
   startRecording();
 }
 
@@ -96,10 +97,6 @@ TerminalUI::~TerminalUI()
 
 void TerminalUI::initializeRecorder()
 {
-  if ( initscr() == nullptr ) {
-    throw std::runtime_error( "Error initializing ncurses. Terminal may not support it." );
-  }
-  cbreak();
   auto writer_impl = std::make_unique<rosbag2_cpp::writers::SequentialWriter>();
   auto writer = std::make_shared<rosbag2_cpp::Writer>( std::move( writer_impl ) );
   recorder_ = std::make_unique<RecorderImpl>( this, writer, storage_options_, record_options_,
@@ -108,7 +105,9 @@ void TerminalUI::initializeRecorder()
 
 void TerminalUI::initializeUI()
 {
-  initscr();
+  if ( initscr() == nullptr ) {
+    throw std::runtime_error( "Error initializing ncurses. Terminal may not support it." );
+  }
   cbreak();
   noecho();
   curs_set( 0 );
@@ -215,8 +214,8 @@ void TerminalUI::updateUI()
 void TerminalUI::updateGeneralInfo()
 {
   std::vector<std::string> lines;
-  lines.push_back(
-      fmt::format( "Bagfile Path: {}", resolveOutputUriToAbsolute( storage_options_.uri ) ) );
+  const std::string abs_uri = resolveOutputUriToAbsolute( storage_options_.uri );
+  lines.push_back( fmt::format( "Bagfile Path: {}", abs_uri ) );
   if ( !config_path_.empty() ) {
     lines.push_back( fmt::format( "Config Path: {}", config_path_ ) );
   }
@@ -224,7 +223,7 @@ void TerminalUI::updateGeneralInfo()
       fmt::format( "Duration: {} s | Size: {} / {} | Files: {}",
                    static_cast<int>( recorder_->get_bagfile_duration().seconds() ),
                    formatMemory( recorder_->get_bagfile_size() ),
-                   formatMemory( std::filesystem::space( storage_options_.uri ).available ),
+                   formatMemory( std::filesystem::space( abs_uri ).available ),
                    recorder_->get_files().size() ) );
 
   // Calculate the required height based on the content
@@ -264,10 +263,8 @@ void TerminalUI::updateTable()
 
   const auto &topics_info = recorder_->get_topics_info();
   max_width_ = getmaxx( tableWin_ );
-  ui_topics_max_length_ =
-      static_cast<int>( max_width_ * 0.3 ); // topic name should not exceed 30% of the window width
-  ui_topics_type_max_length_ =
-      static_cast<int>( max_width_ * 0.2 ); // topic type should not exceed 20% of the window width
+  ui_topics_max_length_ = static_cast<int>( max_width_ * 0.3 );
+  ui_topics_type_max_length_ = static_cast<int>( max_width_ * 0.2 );
   row_ = 1;
 
   if ( topics_info.empty() ) {
@@ -599,29 +596,231 @@ void TerminalUI::renderTopicRow( const std::pair<std::string, TopicInformation> 
   row_++;
 }
 
-void TerminalUI::publishRecorderStatus()
+void TerminalUI::initializeServices()
 {
-  if ( !recorder_ ) {
+  start_srv_ = this->create_service<hector_recorder_msgs::srv::StartRecording>(
+      "~/start_recording",
+      std::bind( &TerminalUI::onStartRecording, this, std::placeholders::_1,
+                 std::placeholders::_2 ) );
+  stop_srv_ = this->create_service<hector_recorder_msgs::srv::StopRecording>(
+      "~/stop_recording",
+      std::bind( &TerminalUI::onStopRecording, this, std::placeholders::_1,
+                 std::placeholders::_2 ) );
+  pause_srv_ = this->create_service<hector_recorder_msgs::srv::PauseRecording>(
+      "~/pause_recording",
+      std::bind( &TerminalUI::onPauseRecording, this, std::placeholders::_1,
+                 std::placeholders::_2 ) );
+  resume_srv_ = this->create_service<hector_recorder_msgs::srv::ResumeRecording>(
+      "~/resume_recording",
+      std::bind( &TerminalUI::onResumeRecording, this, std::placeholders::_1,
+                 std::placeholders::_2 ) );
+  split_srv_ = this->create_service<hector_recorder_msgs::srv::SplitBag>(
+      "~/split_bag",
+      std::bind( &TerminalUI::onSplitBag, this, std::placeholders::_1,
+                 std::placeholders::_2 ) );
+  config_srv_ = this->create_service<hector_recorder_msgs::srv::ApplyConfig>(
+      "~/apply_config",
+      std::bind( &TerminalUI::onApplyConfig, this, std::placeholders::_1,
+                 std::placeholders::_2 ) );
+  save_config_srv_ = this->create_service<hector_recorder_msgs::srv::SaveConfig>(
+      "~/save_config",
+      std::bind( &TerminalUI::onSaveConfig, this, std::placeholders::_1,
+                 std::placeholders::_2 ) );
+  topics_srv_ = this->create_service<hector_recorder_msgs::srv::GetAvailableTopics>(
+      "~/get_available_topics",
+      std::bind( &TerminalUI::onGetAvailableTopics, this, std::placeholders::_1,
+                 std::placeholders::_2 ) );
+  services_srv_ = this->create_service<hector_recorder_msgs::srv::GetAvailableServices>(
+      "~/get_available_services",
+      std::bind( &TerminalUI::onGetAvailableServices, this, std::placeholders::_1,
+                 std::placeholders::_2 ) );
+  get_config_srv_ = this->create_service<hector_recorder_msgs::srv::GetConfig>(
+      "~/get_config",
+      std::bind( &TerminalUI::onGetConfig, this, std::placeholders::_1,
+                 std::placeholders::_2 ) );
+  get_info_srv_ = this->create_service<hector_recorder_msgs::srv::GetRecorderInfo>(
+      "~/get_recorder_info",
+      std::bind( &TerminalUI::onGetRecorderInfo, this, std::placeholders::_1,
+                 std::placeholders::_2 ) );
+  list_bags_srv_ = this->create_service<hector_recorder_msgs::srv::ListBags>(
+      "~/list_bags",
+      std::bind( &TerminalUI::onListBags, this, std::placeholders::_1,
+                 std::placeholders::_2 ) );
+  get_bag_details_srv_ = this->create_service<hector_recorder_msgs::srv::GetBagDetails>(
+      "~/get_bag_details",
+      std::bind( &TerminalUI::onGetBagDetails, this, std::placeholders::_1,
+                 std::placeholders::_2 ) );
+  delete_bag_srv_ = this->create_service<hector_recorder_msgs::srv::DeleteBag>(
+      "~/delete_bag",
+      std::bind( &TerminalUI::onDeleteBag, this, std::placeholders::_1,
+                 std::placeholders::_2 ) );
+}
+
+void TerminalUI::onStartRecording(
+    const std::shared_ptr<hector_recorder_msgs::srv::StartRecording::Request> request,
+    std::shared_ptr<hector_recorder_msgs::srv::StartRecording::Response> response )
+{
+  std::lock_guard<std::mutex> lock( data_mutex_ );
+  handleStartRecording( recorder_, storage_options_, record_options_, custom_options_,
+                        raw_output_uri_, request->output_dir, request->recorded_by, this,
+                        response->success, response->message, response->bag_path );
+}
+
+void TerminalUI::onStopRecording(
+    const std::shared_ptr<hector_recorder_msgs::srv::StopRecording::Request>,
+    std::shared_ptr<hector_recorder_msgs::srv::StopRecording::Response> response )
+{
+  std::lock_guard<std::mutex> lock( data_mutex_ );
+  handleStopRecording( recorder_, storage_options_, response->success, response->message,
+                       response->bag_path );
+  if ( response->success ) {
+    RCLCPP_INFO( this->get_logger(), "Recording stopped." );
+  }
+}
+
+void TerminalUI::onPauseRecording(
+    const std::shared_ptr<hector_recorder_msgs::srv::PauseRecording::Request>,
+    std::shared_ptr<hector_recorder_msgs::srv::PauseRecording::Response> response )
+{
+  std::lock_guard<std::mutex> lock( data_mutex_ );
+  if ( !recorder_ || !recorder_->is_recording() ) {
+    response->success = false;
+    response->message = "Not currently recording.";
     return;
   }
+  recorder_->pause();
+  response->success = true;
+  response->message = "Recording paused.";
+}
 
+void TerminalUI::onResumeRecording(
+    const std::shared_ptr<hector_recorder_msgs::srv::ResumeRecording::Request>,
+    std::shared_ptr<hector_recorder_msgs::srv::ResumeRecording::Response> response )
+{
   std::lock_guard<std::mutex> lock( data_mutex_ );
-
-  hector_recorder_msgs::msg::RecorderStatus status_msg;
-  status_msg.output_dir = storage_options_.uri;
-  status_msg.config_path = config_path_;
-  status_msg.files = recorder_->get_files();
-  status_msg.duration = recorder_->get_bagfile_duration();
-  status_msg.size = recorder_->get_bagfile_size();
-  for ( const auto &topic_info : recorder_->get_topics_info() ) {
-    hector_recorder_msgs::msg::TopicInfo topic_msg;
-    topic_msg.topic = topic_info.first;
-    topic_msg.msg_count = topic_info.second.message_count();
-    topic_msg.frequency = topic_info.second.mean_frequency();
-    topic_msg.bandwidth = topic_info.second.bandwidth();
-    topic_msg.size = topic_info.second.size();
-    status_msg.topics.push_back( topic_msg );
+  if ( !recorder_ || !recorder_->is_recording() ) {
+    response->success = false;
+    response->message = "Not currently recording.";
+    return;
   }
+  recorder_->resume();
+  response->success = true;
+  response->message = "Recording resumed.";
+}
 
+void TerminalUI::onSplitBag(
+    const std::shared_ptr<hector_recorder_msgs::srv::SplitBag::Request>,
+    std::shared_ptr<hector_recorder_msgs::srv::SplitBag::Response> response )
+{
+  std::lock_guard<std::mutex> lock( data_mutex_ );
+  if ( !recorder_ || !recorder_->is_recording() ) {
+    response->success = false;
+    response->message = "Not currently recording.";
+    return;
+  }
+  try {
+    recorder_->split();
+    response->success = true;
+    response->message = "Bag file split.";
+  } catch ( const std::exception &e ) {
+    response->success = false;
+    response->message = std::string( "Failed to split bag: " ) + e.what();
+  }
+}
+
+void TerminalUI::onApplyConfig(
+    const std::shared_ptr<hector_recorder_msgs::srv::ApplyConfig::Request> request,
+    std::shared_ptr<hector_recorder_msgs::srv::ApplyConfig::Response> response )
+{
+  std::lock_guard<std::mutex> lock( data_mutex_ );
+  handleApplyConfig( recorder_, custom_options_, record_options_, storage_options_,
+                     raw_output_uri_, request->config_yaml, request->restart, this,
+                     response->success, response->message, response->active_config_yaml );
+  // Update TUI-local copies that mirror custom_options_
+  throttle_configs_ = custom_options_.topic_throttle;
+  config_path_ = custom_options_.config_path;
+}
+
+void TerminalUI::onSaveConfig(
+    const std::shared_ptr<hector_recorder_msgs::srv::SaveConfig::Request> request,
+    std::shared_ptr<hector_recorder_msgs::srv::SaveConfig::Response> response )
+{
+  handleSaveConfig( request->config_yaml, request->file_path, response->success,
+                    response->message );
+  if ( response->success ) {
+    RCLCPP_INFO( this->get_logger(), "Config saved to %s", request->file_path.c_str() );
+  }
+}
+
+void TerminalUI::onGetAvailableTopics(
+    const std::shared_ptr<hector_recorder_msgs::srv::GetAvailableTopics::Request>,
+    std::shared_ptr<hector_recorder_msgs::srv::GetAvailableTopics::Response> response )
+{
+  handleGetAvailableTopics( this, response->topics, response->types );
+}
+
+void TerminalUI::onGetAvailableServices(
+    const std::shared_ptr<hector_recorder_msgs::srv::GetAvailableServices::Request>,
+    std::shared_ptr<hector_recorder_msgs::srv::GetAvailableServices::Response> response )
+{
+  handleGetAvailableServices( this, response->services, response->types );
+}
+
+void TerminalUI::onGetConfig(
+    const std::shared_ptr<hector_recorder_msgs::srv::GetConfig::Request>,
+    std::shared_ptr<hector_recorder_msgs::srv::GetConfig::Response> response )
+{
+  std::lock_guard<std::mutex> lock( data_mutex_ );
+  handleGetConfig( custom_options_, record_options_, storage_options_, raw_output_uri_,
+                   response->config_yaml );
+}
+
+void TerminalUI::onGetRecorderInfo(
+    const std::shared_ptr<hector_recorder_msgs::srv::GetRecorderInfo::Request>,
+    std::shared_ptr<hector_recorder_msgs::srv::GetRecorderInfo::Response> response )
+{
+  handleGetRecorderInfo( custom_options_, response->hostname, response->recorded_by,
+                         response->config_path );
+}
+
+void TerminalUI::onListBags(
+    const std::shared_ptr<hector_recorder_msgs::srv::ListBags::Request> request,
+    std::shared_ptr<hector_recorder_msgs::srv::ListBags::Response> response )
+{
+  std::string path = request->path;
+  if ( path.empty() ) {
+    std::lock_guard<std::mutex> lock( data_mutex_ );
+    // storage_options_.uri points to the current bag directory (e.g. .../bags/rosbag2_<stamp>).
+    // For listing, we want its parent (the directory containing all bags).
+    path = fs::path( storage_options_.uri ).parent_path().string();
+  }
+  handleListBags( path, storage_options_, response->bags, response->success, response->message );
+}
+
+void TerminalUI::onGetBagDetails(
+    const std::shared_ptr<hector_recorder_msgs::srv::GetBagDetails::Request> request,
+    std::shared_ptr<hector_recorder_msgs::srv::GetBagDetails::Response> response )
+{
+  handleGetBagDetails( request->bag_path, response->info, response->topics, response->success,
+                       response->message );
+}
+
+void TerminalUI::onDeleteBag(
+    const std::shared_ptr<hector_recorder_msgs::srv::DeleteBag::Request> request,
+    std::shared_ptr<hector_recorder_msgs::srv::DeleteBag::Response> response )
+{
+  handleDeleteBag( request->bag_path, request->confirm, response->success, response->message );
+  if ( response->success ) {
+    RCLCPP_INFO( this->get_logger(), "Deleted bag: %s", request->bag_path.c_str() );
+  }
+}
+
+void TerminalUI::publishRecorderStatus()
+{
+  hector_recorder_msgs::msg::RecorderStatus status_msg;
+  {
+    std::lock_guard<std::mutex> lock( data_mutex_ );
+    fillRecorderStatus( status_msg, recorder_.get(), custom_options_, storage_options_, this );
+  }
   status_pub_->publish( status_msg );
 }

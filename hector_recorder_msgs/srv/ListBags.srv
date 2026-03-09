@@ -1,0 +1,6 @@
+# List recorded bag files at a given path
+string path                         # Directory to scan for bags (empty = use recorder output dir)
+---
+hector_recorder_msgs/BagInfo[] bags # List of discovered bags
+bool success
+string message

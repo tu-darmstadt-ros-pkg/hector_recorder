@@ -1,0 +1,4 @@
+# Split current bag file into a new segment
+---
+bool success
+string message

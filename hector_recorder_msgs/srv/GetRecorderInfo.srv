@@ -1,0 +1,5 @@
+# Query static recorder info (does not change during runtime)
+---
+string hostname                 # Machine hostname
+string recorded_by              # Who is recording (e.g. "alice@robot-pc")
+string config_path              # Path to the config file (if loaded from file)

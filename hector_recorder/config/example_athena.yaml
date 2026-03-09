@@ -1,0 +1,10 @@
+node_name: "hector_recorder"
+output: "~/bags/"
+storage_id: "sqlite3"
+all_topics: false
+topics:
+  - "/athena/tf"
+  - "/athena/joint_states"
+rmw_serialization_format: "cdr"
+publish_status: true
+publish_status_topic: "recorder_status"

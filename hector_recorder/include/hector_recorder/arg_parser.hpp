@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HECTOR_RECORDER_ARG_PARSER_HPP
+#define HECTOR_RECORDER_ARG_PARSER_HPP
 
 #include "CLI11.hpp"
 #include "rosbag2_storage/storage_options.hpp"
@@ -26,3 +27,5 @@ private:
 };
 
 } // namespace hector_recorder
+
+#endif // HECTOR_RECORDER_ARG_PARSER_HPP

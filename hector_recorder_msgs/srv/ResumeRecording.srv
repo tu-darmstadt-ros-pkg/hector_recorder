@@ -1,0 +1,4 @@
+# Resume a paused recording
+---
+bool success
+string message

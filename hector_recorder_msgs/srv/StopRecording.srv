@@ -1,0 +1,5 @@
+# Stop current recording
+---
+bool success
+string message
+string bag_path                 # Final path of the completed bag
