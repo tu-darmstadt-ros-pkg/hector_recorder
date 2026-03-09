@@ -34,6 +34,9 @@ BagProviderInterface {
     //! Topics model for the table
     property var topicsModel: ListModel {}
 
+    //! Who is recording — sent to the remote recorder on startRecording
+    property string recordedBy: ""
+
     // ========================================================================
     // Service Clients (created lazily when recorderNamespace is set)
     // ========================================================================
@@ -92,8 +95,14 @@ BagProviderInterface {
     // ========================================================================
 
     function startRecording(outputDir) {
-        if (!startClient) return;
-        startClient.sendRequestAsync({output_dir: outputDir || ""}, function(response) {
+        if (!startClient) {
+            serviceResponse("start", false, "Service client not available");
+            return;
+        }
+        startClient.sendRequestAsync({
+            output_dir: outputDir || "",
+            recorded_by: recordedBy || ""
+        }, function(response) {
             serviceResponse("start", response ? response.success : false,
                 response ? response.message : "No response");
         });

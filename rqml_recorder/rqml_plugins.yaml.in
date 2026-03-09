@@ -1,6 +1,6 @@
 plugins:
   - id: rqml_recorder.recorder_manager
-    name: "Recorder Manager"
+    name: "Bag Recorder"
     group: "Bag Tools"
     path: "share/@PROJECT_NAME@/qml/RecorderManager.qml"
     single_instance: false

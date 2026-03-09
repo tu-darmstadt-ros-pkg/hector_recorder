@@ -118,8 +118,8 @@ void RecorderNode::onStartRecording(
 {
   std::lock_guard<std::mutex> lock( data_mutex_ );
   handleStartRecording( recorder_, storage_options_, record_options_, custom_options_,
-                        raw_output_uri_, request->output_dir, this, response->success,
-                        response->message, response->bag_path );
+                        raw_output_uri_, request->output_dir, request->recorded_by, this,
+                        response->success, response->message, response->bag_path );
 }
 
 void RecorderNode::onStopRecording(

@@ -343,7 +343,10 @@ void LocalBagScanner::fetchRecorderInfo( QJSValue callback )
     if ( engine ) {
       QJSValue info = engine->newObject();
       info.setProperty( "hostname", QHostInfo::localHostName() );
-      info.setProperty( "recordedBy", QString() );
+      QString user = QString::fromLocal8Bit( qgetenv( "USER" ) );
+      info.setProperty( "recordedBy",
+                        user.isEmpty() ? QHostInfo::localHostName()
+                                       : user + "@" + QHostInfo::localHostName() );
       info.setProperty( "configPath", QString() );
       callback.call( { info } );
     }

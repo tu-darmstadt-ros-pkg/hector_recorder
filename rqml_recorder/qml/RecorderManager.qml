@@ -14,6 +14,7 @@ import "utils.js" as Utils
  * RQML plugin for controlling and monitoring hector_recorder instances.
  * Discovers multiple recorders via their status topics and provides
  * a unified interface for remote control and statistics visualization.
+ * Also supports local recording directly in rqml via BagRecorderEngine.
  */
 Rectangle {
     id: root
@@ -21,14 +22,26 @@ Rectangle {
     property var kddockwidgets_min_size: Qt.size(600, 400)
     color: palette.base
 
+    readonly property string _localKey: "__local__"
+
+    //! Local user identity for recorded_by metadata (fetched once on startup)
+    property string _localRecordedBy: ""
+
     Component.onCompleted: {
         if (!context.selectedRecorder)
             context.selectedRecorder = "";
         if (context.autoRefresh === undefined)
             context.autoRefresh = true;
+        // Fetch local user identity for recorded_by
+        _localUserScanner.fetchRecorderInfo(function(info) {
+            _localRecordedBy = info.recordedBy || "";
+        });
         // Delay initial discovery to ensure all child components are ready
         Qt.callLater(d.discoverRecorders);
     }
+
+    // Scanner used only to fetch local user info
+    LocalBagScanner { id: _localUserScanner }
 
     // ========================================================================
     // Private Data
@@ -37,15 +50,21 @@ Rectangle {
     QtObject {
         id: d
 
-        // Map of status topic -> RecorderInterface instance
+        // Map of key -> interface instance (status topics for remote, _localKey for local)
         property var recorderInterfaces: ({})
 
-        // List of known recorder status topics
-        property var recorderTopics: []
+        // List of all entries for the ComboBox (local + discovered remote topics)
+        property var recorderEntries: []
+
+        // Display names for ComboBox entries
+        property var recorderLabels: []
 
         // Currently selected interface (set imperatively, not via binding,
         // because QML cannot track property access on plain JS object maps)
         property var currentInterface: null
+
+        // Whether the current interface is the local recorder
+        readonly property bool isLocal: currentInterface && currentInterface.isLocal === true
 
         function _updateCurrentInterface() {
             currentInterface = recorderInterfaces[context.selectedRecorder] || null;
@@ -54,14 +73,23 @@ Rectangle {
         function discoverRecorders() {
             let topics = Ros2.queryTopics("hector_recorder_msgs/msg/RecorderStatus");
 
-            // Create interfaces for new topics
+            // Ensure local interface exists
+            if (!recorderInterfaces[_localKey]) {
+                let iface = localInterfaceComponent.createObject(root);
+                if (iface) {
+                    recorderInterfaces[_localKey] = iface;
+                }
+            }
+
+            // Create interfaces for new remote topics
             let changed = false;
             for (let i = 0; i < topics.length; i++) {
                 let topic = topics[i];
                 if (!recorderInterfaces[topic]) {
                     let iface = recorderInterfaceComponent.createObject(root, {
                         statusTopic: topic,
-                        enabled: true
+                        enabled: true,
+                        recordedBy: root._localRecordedBy
                     });
                     if (!iface) {
                         console.warn("RecorderManager: failed to create interface for", topic);
@@ -72,14 +100,22 @@ Rectangle {
                 }
             }
 
-            if (changed || recorderTopics.length !== topics.length) {
-                recorderTopics = topics;
+            // Build entries: local first, then remote topics
+            let entries = [_localKey];
+            let labels = ["\u2B24 Bag Recorder"];
+            for (let i = 0; i < topics.length; i++) {
+                entries.push(topics[i]);
+                labels.push(topics[i]);
             }
 
-            // Auto-select first recorder if none selected or selection is stale
-            if (topics.length > 0 &&
-                (!context.selectedRecorder || !recorderInterfaces[context.selectedRecorder])) {
-                context.selectedRecorder = topics[0];
+            if (changed || recorderEntries.length !== entries.length) {
+                recorderEntries = entries;
+                recorderLabels = labels;
+            }
+
+            // Auto-select local if nothing selected or selection is stale
+            if (!context.selectedRecorder || !recorderInterfaces[context.selectedRecorder]) {
+                context.selectedRecorder = _localKey;
             }
 
             // Always refresh currentInterface after discovery
@@ -93,6 +129,11 @@ Rectangle {
     Component {
         id: recorderInterfaceComponent
         RecorderInterface {}
+    }
+
+    Component {
+        id: localInterfaceComponent
+        LocalRecorderInterface {}
     }
 
     // Periodic discovery refresh
@@ -125,11 +166,11 @@ Rectangle {
             ComboBox {
                 id: recorderSelector
                 Layout.fillWidth: true
-                model: d.recorderTopics
+                model: d.recorderLabels
 
                 // Keep currentIndex in sync when model or selection changes
                 function _syncIndex() {
-                    let idx = d.recorderTopics.indexOf(context.selectedRecorder);
+                    let idx = d.recorderEntries.indexOf(context.selectedRecorder);
                     if (idx >= 0) currentIndex = idx;
                 }
 
@@ -137,8 +178,8 @@ Rectangle {
                 onModelChanged: _syncIndex()
 
                 onActivated: function(index) {
-                    if (index >= 0 && index < d.recorderTopics.length) {
-                        context.selectedRecorder = d.recorderTopics[index];
+                    if (index >= 0 && index < d.recorderEntries.length) {
+                        context.selectedRecorder = d.recorderEntries[index];
                         d._updateCurrentInterface();
                     }
                 }
@@ -150,14 +191,37 @@ Rectangle {
         }
 
         // --------------------------------------------------------------------
-        // Machine Info (fetched via GetRecorderInfo service)
+        // WiFi Warning (shown when local recorder is selected)
+        // --------------------------------------------------------------------
+
+        Rectangle {
+            Layout.fillWidth: true
+            height: wifiWarningLabel.implicitHeight + 12
+            radius: 4
+            color: Material.color(Material.Orange, Material.Shade100)
+            visible: d.isLocal
+
+            Label {
+                id: wifiWarningLabel
+                anchors.fill: parent
+                anchors.margins: 6
+                text: "\u26A0 Local recording pulls data over the network. " +
+                      "For high-bandwidth topics (cameras, point clouds), prefer the remote recorder."
+                wrapMode: Text.Wrap
+                font.pixelSize: 11
+                color: Material.color(Material.Orange, Material.Shade900)
+            }
+        }
+
+        // --------------------------------------------------------------------
+        // Machine Info (fetched via GetRecorderInfo service, hidden for local)
         // --------------------------------------------------------------------
 
         RowLayout {
             id: machineInfoRow
             Layout.fillWidth: true
             spacing: 12
-            visible: d.currentInterface && d.currentInterface.status
+            visible: !d.isLocal && d.currentInterface && d.currentInterface.status
 
             property string _hostname: ""
             property string _recordedBy: ""
@@ -186,7 +250,7 @@ Rectangle {
                 function onCurrentInterfaceChanged() {
                     machineInfoRow._hostname = "";
                     machineInfoRow._recordedBy = "";
-                    machineInfoRow._fetchInfo();
+                    if (!d.isLocal) machineInfoRow._fetchInfo();
                 }
             }
 
@@ -284,10 +348,13 @@ Rectangle {
                         icon.source: ""
                         text: "\u25B6 Start"
                         font.pixelSize: 12
-                        ToolTip.text: "Start a new recording"
+                        ToolTip.text: d.isLocal && d.currentInterface && d.currentInterface.selectedTopicCount === 0
+                            ? "Configure topics first (click Settings)"
+                            : "Start a new recording"
                         ToolTip.visible: hovered
                         enabled: d.currentInterface &&
-                            (d.currentInterface.state === "idle" || d.currentInterface.state === "disconnected")
+                            (d.currentInterface.state === "idle" || d.currentInterface.state === "disconnected") &&
+                            (!d.isLocal || d.currentInterface.selectedTopicCount > 0)
                         onClicked: outputDirDialog.open()
                     }
 
@@ -335,6 +402,24 @@ Rectangle {
                     }
                 }
 
+                // Config Info (local recorder only)
+                Label {
+                    Layout.fillWidth: true
+                    visible: d.isLocal && d.currentInterface
+                    font.pixelSize: 11
+                    opacity: 0.7
+                    text: {
+                        if (!d.currentInterface || !d.isLocal) return "";
+                        let sel = d.currentInterface.selectedTopicCount;
+                        let avail = d.currentInterface.availableTopicCount;
+                        if (sel === 0 && avail === 0)
+                            return "No topics configured. Click Settings to select topics.";
+                        if (sel === 0)
+                            return "No topics selected (0 of " + avail + " available). Click Settings to select topics.";
+                        return "Selected " + sel + " of " + avail + " available topic" + (avail !== 1 ? "s" : "") + " for recording.";
+                    }
+                }
+
                 // Summary Bar
                 RowLayout {
                     Layout.fillWidth: true
@@ -377,11 +462,17 @@ Rectangle {
         }
 
         // Auto-refresh bags when switching to Bags tab
+        // Delay bag refresh until after the StackLayout finishes its geometry pass
+        Timer {
+            id: bagRefreshTimer
+            interval: 50
+            onTriggered: bagBrowser.refresh()
+        }
         Connections {
             target: tabBar
             function onCurrentIndexChanged() {
                 if (tabBar.currentIndex === 1) {
-                    bagBrowser.refresh();
+                    bagRefreshTimer.restart();
                 }
             }
         }
@@ -425,7 +516,8 @@ Rectangle {
             }
 
             Label {
-                text: d.recorderTopics.length + " recorder" + (d.recorderTopics.length !== 1 ? "s" : "")
+                property int remoteCount: d.recorderEntries.length - 1
+                text: d.isLocal ? "Local" : remoteCount + " remote recorder" + (remoteCount !== 1 ? "s" : "")
                 color: palette.mid
                 font.pixelSize: 11
             }
@@ -438,8 +530,8 @@ Rectangle {
 
     Label {
         anchors.centerIn: parent
-        visible: d.recorderTopics.length === 0
-        text: "No recorder instances found.\nWaiting for hector_recorder_msgs/msg/RecorderStatus topics..."
+        visible: !d.currentInterface
+        text: "No recorder selected."
         horizontalAlignment: Text.AlignHCenter
         color: palette.mid
     }
@@ -473,6 +565,9 @@ Rectangle {
                 d.currentInterface.fetchConfig(function(yaml) {
                     let m = yaml.match(/^output:\s*"?([^"\n]*)"?$/m);
                     let dir = m ? m[1] : "";
+                    // Strip any trailing rosbag2_* timestamp folder that may leak
+                    // from storage_options.uri after a previous recording
+                    dir = dir.replace(/\/rosbag2_[^/]+\/?$/, "/");
                     if (dir.length > 0 && dir[dir.length - 1] !== "/")
                         dir += "/";
                     outputDirField.text = dir;

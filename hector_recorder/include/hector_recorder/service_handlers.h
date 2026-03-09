@@ -31,7 +31,8 @@ void handleStartRecording( std::unique_ptr<RecorderImpl> &recorder,
                            const rosbag2_transport::RecordOptions &record_options,
                            const CustomOptions &custom_options,
                            const std::string &raw_output_uri,
-                           const std::string &request_output_dir, rclcpp::Node *node,
+                           const std::string &request_output_dir,
+                           const std::string &request_recorded_by, rclcpp::Node *node,
                            bool &out_success, std::string &out_message,
                            std::string &out_bag_path );
 

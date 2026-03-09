@@ -24,12 +24,19 @@ void BagTransfer::start( const QString &hostname, const QString &remotePath,
   if ( running_ )
     return;
 
+  // Expand ~ to home directory and clean up double slashes
+  QString expandedDir = localDir;
+  if ( expandedDir.startsWith( "~/" ) || expandedDir == "~" ) {
+    expandedDir = QDir::homePath() + expandedDir.mid( 1 );
+  }
+  expandedDir = QDir::cleanPath( expandedDir );
+
   // Ensure local directory exists
-  QDir().mkpath( localDir );
+  QDir().mkpath( expandedDir );
 
   // Extract bag directory name from remote path
   QString bagName = QFileInfo( remotePath ).fileName();
-  localPath_ = localDir + "/" + bagName;
+  localPath_ = QDir::cleanPath( expandedDir + "/" + bagName );
 
   // Detect if the recorder is on the same machine (local transfer)
   QString localHostname = QHostInfo::localHostName();

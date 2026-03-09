@@ -23,6 +23,8 @@ qt_add_qml_module(rqml_recorder_plugin
     src/local_bag_scanner.cpp
     src/bag_player_engine.hpp
     src/bag_player_engine.cpp
+    src/bag_recorder_engine.hpp
+    src/bag_recorder_engine.cpp
   OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/RqmlRecorder"
 )
 

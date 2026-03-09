@@ -30,6 +30,9 @@ Rectangle {
     signal statusMessage(string msg, bool isError)
     signal playRequested(string bagPath, string bagName)
 
+    //! Scanner for local path completion in transfer dialog
+    property LocalBagScanner _pathScanner: LocalBagScanner {}
+
     //! Cached hostname from GetRecorderInfo service
     property string _cachedHostname: ""
 
@@ -61,6 +64,7 @@ Rectangle {
             _sortBagModel();
             selectedIndex = -1;
             detailModel.clear();
+            Qt.callLater(function() { bagListView.forceLayout(); });
         });
     }
 
@@ -523,11 +527,96 @@ Rectangle {
                 spacing: 4
 
                 Label { text: "Local directory:" }
-                TextField {
-                    id: transferLocalDir
+                Item {
                     Layout.fillWidth: true
-                    text: _getDefaultTransferDir()
-                    placeholderText: "/home/user/bags/"
+                    implicitHeight: transferLocalDir.implicitHeight
+
+                    TextField {
+                        id: transferLocalDir
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        text: _getDefaultTransferDir()
+                        placeholderText: "~/bags/"
+                        selectByMouse: true
+
+                        onTextEdited: transferCompletionTimer.restart()
+
+                        Keys.onPressed: function(event) {
+                            if (!transferCompletionPopup.visible) return;
+
+                            if (event.key === Qt.Key_Down) {
+                                transferCompletionList.incrementCurrentIndex();
+                                event.accepted = true;
+                            } else if (event.key === Qt.Key_Up) {
+                                transferCompletionList.decrementCurrentIndex();
+                                event.accepted = true;
+                            } else if (event.key === Qt.Key_Tab) {
+                                if (transferCompletionList.currentIndex >= 0 && transferCompletionList.currentIndex < transferCompletionModel.count) {
+                                    transferLocalDir.text = transferCompletionModel.get(transferCompletionList.currentIndex).path;
+                                    transferLocalDir.cursorPosition = transferLocalDir.text.length;
+                                    transferCompletionTimer.restart();
+                                    event.accepted = true;
+                                }
+                            } else if (event.key === Qt.Key_Escape) {
+                                transferCompletionPopup.close();
+                                event.accepted = true;
+                            }
+                        }
+
+                        Timer {
+                            id: transferCompletionTimer
+                            interval: 150
+                            onTriggered: _updateTransferCompletions()
+                        }
+                    }
+
+                    Popup {
+                        id: transferCompletionPopup
+                        y: transferLocalDir.height
+                        width: transferLocalDir.width
+                        height: Math.min(transferCompletionList.contentHeight + 8, 200)
+                        padding: 4
+                        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+                        background: Rectangle {
+                            color: palette.window
+                            border.color: palette.mid
+                            radius: 4
+                        }
+
+                        ListView {
+                            id: transferCompletionList
+                            anchors.fill: parent
+                            model: transferCompletionModel
+                            clip: true
+                            currentIndex: 0
+
+                            delegate: ItemDelegate {
+                                width: transferCompletionList.width
+                                height: 28
+                                highlighted: index === transferCompletionList.currentIndex
+
+                                contentItem: Label {
+                                    text: model.path
+                                    font.pixelSize: 12
+                                    font.family: "monospace"
+                                    elide: Text.ElideMiddle
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+
+                                onClicked: {
+                                    transferLocalDir.text = model.path;
+                                    transferLocalDir.cursorPosition = transferLocalDir.text.length;
+                                    transferLocalDir.forceActiveFocus();
+                                    transferCompletionTimer.restart();
+                                }
+                            }
+                        }
+                    }
+
+                    ListModel {
+                        id: transferCompletionModel
+                    }
                 }
             }
 
@@ -642,7 +731,7 @@ Rectangle {
     }
 
     function _getDefaultTransferDir() {
-        return "/tmp/bags/";
+        return "~/bags/";
     }
 
     function _toggleSort(column) {
@@ -685,6 +774,29 @@ Rectangle {
             cmp = String(va).localeCompare(String(vb));
         }
         return root.sortAscending ? cmp : -cmp;
+    }
+
+    function _updateTransferCompletions() {
+        let completions = _pathScanner.completePath(transferLocalDir.text);
+        transferCompletionModel.clear();
+
+        if (completions.length === 0) {
+            transferCompletionPopup.close();
+            return;
+        }
+
+        if (completions.length === 1 && completions[0] === transferLocalDir.text) {
+            transferCompletionPopup.close();
+            return;
+        }
+
+        for (let i = 0; i < completions.length; i++) {
+            transferCompletionModel.append({ path: completions[i] });
+        }
+
+        transferCompletionList.currentIndex = 0;
+        if (!transferCompletionPopup.visible)
+            transferCompletionPopup.open();
     }
 
     function _formatBytes(bytes) { return Utils.formatBytes(bytes); }
