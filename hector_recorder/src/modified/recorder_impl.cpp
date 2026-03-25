@@ -487,6 +487,32 @@ bool RecorderImpl::throttle_pass(const std::string & topic_name, size_t msg_size
       return true;
     }
     return false;  // Bandwidth budget exceeded
+  } else if (config.type == ThrottleConfig::FREQUENCY) {
+    const auto period = rclcpp::Rate(config.frequency_hz).period();
+
+    if (state.frequency_last_call_time > now) {
+      // Clock jump backward, reset pacing anchor.
+      state.frequency_next_time = now;
+    }
+    state.frequency_last_call_time = now;
+
+    if (state.frequency_next_time.nanoseconds() == 0) {
+      // First message passes immediately and initializes pacing.
+      state.frequency_next_time = now;
+    }
+
+    if (now < state.frequency_next_time) {
+      return false;
+    }
+
+    auto next_time = state.frequency_next_time;
+    const auto period_duration = rclcpp::Duration(period);
+    do {
+      next_time = next_time + period_duration;
+    } while (next_time <= now);
+
+    state.frequency_next_time = next_time;
+    return true;
   }
 
   return true;
