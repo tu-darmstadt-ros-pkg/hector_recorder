@@ -81,8 +81,11 @@ max_bag_duration: 60          # split the bag at 60s
 publish_status: true          # publish hector_recorder_msgs status
 topic_throttle:               # throttle a topic by rate or bandwidth
   "/tf":
-    type: "messages"
+    type: "messages"          # only record the first n messages per second
     msgs_per_sec: 10.0
+  "/camera/image_raw":
+    type: "frequency"         # paced, evenly spaced sampling
+    frequency_hz: 5.0
 ```
 
 See here for all available parameters and their default values:

@@ -557,9 +557,19 @@ bool parseYamlConfig( CustomOptions &custom_options, rosbag2_transport::RecordOp
           if ( tc.window <= 0.0 ) {
             throw std::runtime_error( "topic_throttle: '" + topic + "' window must be > 0." );
           }
+        } else if ( type_str == "frequency" ) {
+          tc.type = ThrottleConfig::FREQUENCY;
+          if ( !cfg["frequency_hz"] ) {
+            throw std::runtime_error( "topic_throttle: '" + topic +
+                                      "' has type 'frequency' but no 'frequency_hz'." );
+          }
+          tc.frequency_hz = cfg["frequency_hz"].as<double>();
+          if ( tc.frequency_hz <= 0.0 ) {
+            throw std::runtime_error( "topic_throttle: '" + topic + "' frequency_hz must be > 0." );
+          }
         } else {
           throw std::runtime_error( "topic_throttle: '" + topic + "' has unknown type '" +
-                                    type_str + "'. Expected 'messages' or 'bytes'." );
+                                    type_str + "'. Expected 'messages', 'bytes' or 'frequency'." );
         }
         custom_options.topic_throttle[topic] = tc;
       }

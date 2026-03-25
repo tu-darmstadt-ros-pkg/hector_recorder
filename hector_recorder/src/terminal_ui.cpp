@@ -566,10 +566,12 @@ void TerminalUI::renderTopicRow( const std::pair<std::string, TopicInformation> 
   bool has_throttle = throttle_configs_.count( topic.first ) > 0;
 
   for ( size_t i = 0; i < headers_.size(); ++i ) {
-    // Highlight only the relevant column: Freq (2) for MESSAGES, Bandwidth (3) for BYTES
+    // Highlight only the relevant column: Freq (2) for throttle type MESSAGES/FREQUENCY, Bandwidth (3) for BYTES
     bool throttle_highlight =
         has_throttle &&
-        ( ( throttle_configs_.at( topic.first ).type == ThrottleConfig::MESSAGES && i == 2 ) ||
+        ( ( ( throttle_configs_.at( topic.first ).type == ThrottleConfig::MESSAGES ||
+              throttle_configs_.at( topic.first ).type == ThrottleConfig::FREQUENCY ) &&
+            i == 2 ) ||
           ( throttle_configs_.at( topic.first ).type == ThrottleConfig::BYTES && i == 3 ) );
     if ( throttle_highlight ) {
       wattron( tableWin_, COLOR_PAIR( 4 ) );
