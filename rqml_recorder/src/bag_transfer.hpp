@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QProcess>
 #include <QString>
+#include <QStringList>
 #include <QtQml/qqmlregistration.h>
 
 /**
@@ -24,6 +25,8 @@ class BagTransfer : public QObject
   Q_PROPERTY( int etaSeconds READ etaSeconds NOTIFY progressChanged )
   Q_PROPERTY( QString sourcePath READ sourcePath NOTIFY sourcePathChanged )
   Q_PROPERTY( QString destPath READ destPath NOTIFY destPathChanged )
+  Q_PROPERTY( QString failureCommand READ failureCommand NOTIFY failureChanged )
+  Q_PROPERTY( QString failureOutput READ failureOutput NOTIFY failureChanged )
 
 public:
   explicit BagTransfer( QObject *parent = nullptr );
@@ -38,6 +41,12 @@ public:
   int etaSeconds() const;
   QString sourcePath() const;
   QString destPath() const;
+
+  /// Shell-safe rsync command line, available after a failed transfer so the
+  /// user can re-run it in a terminal (where SSH can prompt interactively).
+  QString failureCommand() const;
+  /// Captured tail of the rsync/ssh output from the failed transfer.
+  QString failureOutput() const;
 
   /**
    * Start an rsync transfer.
@@ -57,6 +66,7 @@ signals:
   void statusTextChanged();
   void sourcePathChanged();
   void destPathChanged();
+  void failureChanged();
   void finished( bool success, const QString &message, const QString &localPath );
 
 private slots:
@@ -73,6 +83,11 @@ private:
   QString localPath_;
   QString sourcePath_;
   QString destPath_;
+  QString program_;       ///< rsync program name, kept to rebuild the command
+  QStringList arguments_; ///< rsync arguments, kept to rebuild the command
+  QString failureCommand_;
+  QString failureOutput_;
+  QStringList recentOutput_; ///< rolling tail of rsync output lines
   qint64 bytesTransferred_ = 0;
   qint64 bytesTotal_ = 0;
   double speed_ = 0.0;

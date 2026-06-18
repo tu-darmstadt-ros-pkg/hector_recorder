@@ -46,6 +46,10 @@ Item {
         recorderInterface: mockInterface
     }
 
+    Utils {
+        id: helpers
+    }
+
     TestCase {
         name: "BagTransferTest"
         when: windowShown
@@ -203,6 +207,62 @@ Item {
             browserTransfer._simulateFinishSuccess("/home/user/bags/remote_bag");
             tryCompare(browserTransfer, "running", false, 1000, "Transfer should be complete");
             compare(browserTransfer.progress, 100.0, "Progress should be 100%");
+        }
+
+        // ---- Test 7b: Failure shows copyable command + output ----
+        function test_07b_failure_shows_error_dialog() {
+            mockInterface._mockBags = [
+                { name: "remote_bag", path: "/remote/bags/remote_bag", sizeBytes: 5000,
+                  startTime: "2025-01-01", durationSecs: 60, topicCount: 3,
+                  messageCount: 100, recordedBy: "robot", storageId: "sqlite3" }
+            ];
+
+            bagBrowser.refresh();
+            tryCompare(bagBrowser.bagModel, "count", 1, 1000, "Should have 1 bag");
+
+            var browserTransfer = null;
+            for (var i = 0; i < bagBrowser.data.length; i++) {
+                var obj = bagBrowser.data[i];
+                if (obj && obj.running !== undefined && obj.start !== undefined &&
+                    obj.failureCommand !== undefined) {
+                    browserTransfer = obj;
+                    break;
+                }
+            }
+            verify(browserTransfer !== null, "BagBrowser should have BagTransfer");
+
+            var errorDialog = helpers.findChild(bagBrowser, "bagBrowserTransferErrorDialog");
+            verify(errorDialog !== null, "Error dialog should exist");
+            verify(!errorDialog.visible, "Error dialog should be hidden initially");
+
+            browserTransfer.start("robot-pc", "/remote/bags/remote_bag", "~/bags/");
+            tryCompare(browserTransfer, "running", true, 1000, "Transfer should be running");
+
+            var cmd = "rsync -a -z --info=progress2 --no-inc-recursive " +
+                      "robot-pc:/remote/bags/remote_bag/ /home/user/bags/remote_bag/";
+            browserTransfer._simulateFinishFailure(
+                "Transfer failed (exit code 9)", cmd,
+                "ssh: Host key verification failed.\nrsync error: unexplained error");
+
+            tryCompare(errorDialog, "visible", true, 1000,
+                "Error dialog should open on failure");
+            compare(errorDialog.command, cmd, "Dialog should carry the rsync command");
+            verify(errorDialog.output.indexOf("Host key verification") >= 0,
+                "Dialog should carry the captured output");
+
+            var cmdField = helpers.findChild(bagBrowser, "bagBrowserTransferErrorCommandField");
+            verify(cmdField !== null, "Command field should exist");
+            compare(cmdField.text, cmd, "Command field should show the command");
+            verify(cmdField.readOnly, "Command field should be read-only");
+
+            var copyButton = helpers.findChild(bagBrowser, "bagBrowserTransferErrorCopyButton");
+            verify(copyButton !== null, "Copy button should exist");
+
+            var closeButton = helpers.findChild(bagBrowser, "bagBrowserTransferErrorCloseButton");
+            verify(closeButton !== null, "Close button should exist");
+            closeButton.clicked();
+            tryCompare(errorDialog, "visible", false, 1000,
+                "Error dialog should close on Close");
         }
 
         // ---- Test 8: Source and dest paths ----

@@ -24,6 +24,8 @@ double BagTransfer::speed() const { return speed_; }
 int BagTransfer::etaSeconds() const { return etaSeconds_; }
 QString BagTransfer::sourcePath() const { return sourcePath_; }
 QString BagTransfer::destPath() const { return destPath_; }
+QString BagTransfer::failureCommand() const { return failureCommand_; }
+QString BagTransfer::failureOutput() const { return failureOutput_; }
 
 void BagTransfer::start( const QString &hostname, const QString &remotePath,
                           const QString &localDir )
@@ -76,7 +78,14 @@ void BagTransfer::start( const QString &hostname, const QString &remotePath,
     args << "-z"; // Only compress for remote transfers
   args << "--info=progress2" << "--no-inc-recursive" << source << dest;
 
+  program_ = "rsync";
+  arguments_ = args;
+
   running_ = true;
+  failureCommand_.clear();
+  failureOutput_.clear();
+  recentOutput_.clear();
+  emit failureChanged();
   progress_ = 0.0;
   bytesTransferred_ = 0;
   bytesTotal_ = 0;
@@ -102,6 +111,27 @@ void BagTransfer::cancel()
     statusText_ = "Cancelled";
     emit statusTextChanged();
   }
+}
+
+// Quote a single argument for safe pasting into a POSIX shell.
+static QString shellQuote( const QString &arg )
+{
+  static QRegularExpression safeRe( R"(^[A-Za-z0-9_@%+=:,./-]+$)" );
+  if ( !arg.isEmpty() && safeRe.match( arg ).hasMatch() )
+    return arg;
+  QString escaped = arg;
+  escaped.replace( "'", "'\\''" );
+  return "'" + escaped + "'";
+}
+
+static QString buildCommandString( const QString &program, const QStringList &args )
+{
+  QStringList parts;
+  parts.reserve( args.size() + 1 );
+  parts << shellQuote( program );
+  for ( const QString &a : args )
+    parts << shellQuote( a );
+  return parts.join( ' ' );
 }
 
 static QString formatSize( qint64 bytes )
@@ -185,6 +215,13 @@ void BagTransfer::parseLine( const QString &line )
 {
   if ( line.isEmpty() )
     return;
+
+  // Retain a rolling tail of output so the real rsync/ssh error survives until
+  // the process finishes (the progress channel is otherwise drained as we go).
+  recentOutput_.append( line );
+  constexpr int kMaxOutputLines = 20;
+  while ( recentOutput_.size() > kMaxOutputLines )
+    recentOutput_.removeFirst();
 
   // rsync --info=progress2 --no-inc-recursive output looks like:
   //   "  1,234,567  42%   12.34MB/s    0:01:23"
@@ -275,16 +312,30 @@ void BagTransfer::onProcessFinished( int exitCode, QProcess::ExitStatus exitStat
   emit runningChanged();
 
   if ( exitStatus == QProcess::CrashExit || exitCode != 0 ) {
-    QString error = process_->readAllStandardOutput();
-    statusText_ = "Transfer failed (exit code " + QString::number( exitCode ) + ")";
+    // The output channel has already been drained into recentOutput_ as the
+    // process ran, so reuse that tail rather than reading the (now empty)
+    // process buffer.
+    failureOutput_ = recentOutput_.join( '\n' ).trimmed();
+    failureCommand_ = buildCommandString( program_, arguments_ );
+
+    if ( exitStatus == QProcess::CrashExit ) {
+      statusText_ = "Transfer failed (killed)";
+    } else {
+      statusText_ = "Transfer failed (exit code " + QString::number( exitCode ) + ")";
+    }
     emit statusTextChanged();
+    emit failureChanged();
     progress_ = 0.0;
     bytesTransferred_ = 0;
     bytesTotal_ = 0;
     speed_ = 0.0;
     etaSeconds_ = -1;
     emit progressChanged();
-    emit finished( false, statusText_ + ": " + error, "" );
+
+    QString message = statusText_;
+    if ( !failureOutput_.isEmpty() )
+      message += ": " + failureOutput_;
+    emit finished( false, message, "" );
   } else {
     progress_ = 100.0;
     etaSeconds_ = 0;

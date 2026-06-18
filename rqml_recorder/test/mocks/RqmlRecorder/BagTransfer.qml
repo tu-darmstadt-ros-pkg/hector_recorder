@@ -12,6 +12,8 @@ QtObject {
     property int etaSeconds: -1
     property string sourcePath: ""
     property string destPath: ""
+    property string failureCommand: ""
+    property string failureOutput: ""
 
     signal finished(bool success, string message, string localPath)
 
@@ -31,6 +33,8 @@ QtObject {
         progress = 0.0;
         speed = 0.0;
         etaSeconds = -1;
+        failureCommand = "";
+        failureOutput = "";
         sourcePath = hostname + ":" + remotePath;
         destPath = localDir + "/" + remotePath.split("/").pop();
         statusText = "Starting transfer...";
@@ -65,11 +69,13 @@ QtObject {
         finished(true, "Transfer complete", localPath);
     }
 
-    function _simulateFinishFailure(message) {
+    function _simulateFinishFailure(message, command, output) {
         progress = 0.0;
         speed = 0.0;
         etaSeconds = -1;
         statusText = message;
+        failureCommand = command || "";
+        failureOutput = output || "";
         running = false;
         finished(false, message, "");
     }

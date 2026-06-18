@@ -736,6 +736,117 @@ Rectangle {
                 success ? "Transfer complete: " + localPath : "Transfer failed: " + message,
                 !success
             );
+            if (!success) {
+                transferErrorDialog.command = bagTransfer.failureCommand;
+                transferErrorDialog.output = bagTransfer.failureOutput;
+                transferErrorDialog.open();
+            }
+        }
+    }
+
+    // ========================================================================
+    // Transfer Error
+    // ========================================================================
+
+    Popup {
+        id: transferErrorDialog
+        objectName: "bagBrowserTransferErrorDialog"
+        modal: true
+        width: 560
+        height: 320
+        anchors.centerIn: parent
+        padding: 16
+
+        property string command: ""
+        property string output: ""
+
+        background: Rectangle {
+            color: palette.window
+            border.color: Material.color(Material.Red)
+            radius: 8
+        }
+
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: 8
+
+            Label {
+                text: "Transfer failed"
+                font.bold: true
+                color: Material.color(Material.Red)
+            }
+
+            Label {
+                text: "Run the command in a terminal to retry and " +
+                      "see the full error."
+                wrapMode: Text.Wrap
+                Layout.fillWidth: true
+                opacity: 0.8
+            }
+
+            // Copyable rsync command
+            Label {
+                text: "Command:"
+                font.bold: true
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 4
+
+                TextField {
+                    id: transferErrorCommandField
+                    objectName: "bagBrowserTransferErrorCommandField"
+                    Layout.fillWidth: true
+                    text: transferErrorDialog.command
+                    readOnly: true
+                    selectByMouse: true
+                    font.family: "monospace"
+                }
+
+                Button {
+                    objectName: "bagBrowserTransferErrorCopyButton"
+                    text: "Copy"
+                    onClicked: {
+                        transferErrorCommandField.selectAll();
+                        transferErrorCommandField.copy();
+                        transferErrorCommandField.deselect();
+                        root.statusMessage("rsync command copied to clipboard", false);
+                    }
+                }
+            }
+
+            // Captured rsync/ssh output
+            Label {
+                text: "Output:"
+                font.bold: true
+                visible: transferErrorDialog.output !== ""
+            }
+            ScrollView {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                visible: transferErrorDialog.output !== ""
+                clip: true
+
+                TextArea {
+                    objectName: "bagBrowserTransferErrorOutput"
+                    text: transferErrorDialog.output
+                    readOnly: true
+                    selectByMouse: true
+                    font.family: "monospace"
+                    wrapMode: TextArea.NoWrap
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Item { Layout.fillWidth: true }
+
+                Button {
+                    objectName: "bagBrowserTransferErrorCloseButton"
+                    text: "Close"
+                    onClicked: transferErrorDialog.close()
+                }
+            }
         }
     }
 
