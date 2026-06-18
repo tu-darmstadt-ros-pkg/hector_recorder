@@ -28,10 +28,6 @@ Rectangle {
     property string _localRecordedBy: ""
 
     Component.onCompleted: {
-        if (!context.selectedRecorder)
-            context.selectedRecorder = "";
-        if (context.autoRefresh === undefined)
-            context.autoRefresh = true;
         // Fetch local user identity for recorded_by
         _localUserScanner.fetchRecorderInfo(function(info) {
             _localRecordedBy = info.recordedBy || "";
@@ -65,6 +61,11 @@ Rectangle {
 
         // Whether the current interface is the local recorder
         readonly property bool isLocal: currentInterface && currentInterface.isLocal === true
+
+        // Whether a new recording can be started with the current interface
+        readonly property bool canStartRecording: currentInterface
+            && (currentInterface.state === "idle" || currentInterface.state === "disconnected")
+            && (!isLocal || currentInterface.selectedTopicCount > 0)
 
         function _updateCurrentInterface() {
             currentInterface = recorderInterfaces[context.selectedRecorder] || null;
@@ -139,7 +140,7 @@ Rectangle {
     // Periodic discovery refresh
     Timer {
         interval: 5000
-        running: context.autoRefresh
+        running: context.autoRefresh ?? true
         repeat: true
         onTriggered: d.discoverRecorders()
     }
@@ -165,6 +166,7 @@ Rectangle {
 
             ComboBox {
                 id: recorderSelector
+                objectName: "recorderManagerRecorderSelector"
                 Layout.fillWidth: true
                 model: d.recorderLabels
 
@@ -186,6 +188,7 @@ Rectangle {
             }
 
             RefreshButton {
+                objectName: "recorderManagerRefreshButton"
                 onClicked: d.discoverRecorders()
             }
         }
@@ -203,12 +206,12 @@ Rectangle {
 
             Label {
                 id: wifiWarningLabel
+                objectName: "recorderManagerWifiWarningLabel"
                 anchors.fill: parent
                 anchors.margins: 6
                 text: "\u26A0 Local recording pulls data over the network. " +
                       "For high-bandwidth topics (cameras, point clouds), prefer the remote recorder."
                 wrapMode: Text.Wrap
-                font.pixelSize: 11
                 color: Material.color(Material.Orange, Material.Shade900)
             }
         }
@@ -256,24 +259,21 @@ Rectangle {
 
             Label {
                 text: "Host: " + parent._hostname
-                font.pixelSize: 11
                 opacity: 0.7
             }
 
-            Rectangle { width: 1; height: 14; color: palette.mid; opacity: 0.4 }
+            Rectangle { width: 1; height: 14; color: palette.text; opacity: 0.15 }
 
             Label {
                 text: "User: " + parent._recordedBy
-                font.pixelSize: 11
                 opacity: 0.7
             }
 
-            Rectangle { width: 1; height: 14; color: palette.mid; opacity: 0.4 }
+            Rectangle { width: 1; height: 14; color: palette.text; opacity: 0.15 }
 
             Label {
                 property var s: d.currentInterface ? d.currentInterface.status : null
                 text: "Node: " + (s ? s.node_name : "")
-                font.pixelSize: 11
                 opacity: 0.7
                 elide: Text.ElideMiddle
                 Layout.fillWidth: true
@@ -286,10 +286,11 @@ Rectangle {
 
         TabBar {
             id: tabBar
+            objectName: "recorderManagerTabBar"
             Layout.fillWidth: true
 
-            TabButton { text: "Recording" }
-            TabButton { text: "Bags" }
+            TabButton { objectName: "recorderManagerRecordingTab"; text: "Recording" }
+            TabButton { objectName: "recorderManagerBagsTab"; text: "Bags" }
         }
 
         // --------------------------------------------------------------------
@@ -315,6 +316,7 @@ Rectangle {
                     visible: !!d.currentInterface
 
                     StateIndicator {
+                        objectName: "recorderManagerStateIndicator"
                         state: {
                             if (!d.currentInterface) return "unknown";
                             switch (d.currentInterface.state) {
@@ -328,6 +330,7 @@ Rectangle {
                     }
 
                     Label {
+                        objectName: "recorderManagerStateLabel"
                         text: d.currentInterface ? d.currentInterface.state.toUpperCase() : "N/A"
                         font.bold: true
                         color: {
@@ -345,23 +348,21 @@ Rectangle {
                     Item { Layout.fillWidth: true }
 
                     Button {
+                        objectName: "recorderManagerStartButton"
                         icon.source: ""
-                        text: "\u25B6 Start"
-                        font.pixelSize: 12
+                        text: "▶ Start"
                         ToolTip.text: d.isLocal && d.currentInterface && d.currentInterface.selectedTopicCount === 0
                             ? "Configure topics first (click Settings)"
                             : "Start a new recording"
                         ToolTip.visible: hovered
-                        enabled: d.currentInterface &&
-                            (d.currentInterface.state === "idle" || d.currentInterface.state === "disconnected") &&
-                            (!d.isLocal || d.currentInterface.selectedTopicCount > 0)
+                        enabled: d.canStartRecording
                         onClicked: outputDirDialog.open()
                     }
 
                     Button {
+                        objectName: "recorderManagerPauseResumeButton"
                         text: d.currentInterface && d.currentInterface.state === "paused"
                             ? "\u25B6 Resume" : "\u23F8 Pause"
-                        font.pixelSize: 12
                         ToolTip.text: d.currentInterface && d.currentInterface.state === "paused"
                             ? "Resume recording" : "Pause recording"
                         ToolTip.visible: hovered
@@ -377,8 +378,8 @@ Rectangle {
                     }
 
                     Button {
+                        objectName: "recorderManagerStopButton"
                         text: "\u23F9 Stop"
-                        font.pixelSize: 12
                         ToolTip.text: "Stop the current recording"
                         ToolTip.visible: hovered
                         enabled: d.currentInterface &&
@@ -387,8 +388,8 @@ Rectangle {
                     }
 
                     Button {
+                        objectName: "recorderManagerSplitButton"
                         text: "\u2702 Split"
-                        font.pixelSize: 12
                         ToolTip.text: "Split the current bag file"
                         ToolTip.visible: hovered
                         enabled: d.currentInterface && d.currentInterface.state === "recording"
@@ -396,6 +397,7 @@ Rectangle {
                     }
 
                     IconButton {
+                        objectName: "recorderManagerSettingsButton"
                         text: IconFont.iconSettings
                         tooltipText: "Configure"
                         onClicked: configEditor.open()
@@ -406,7 +408,6 @@ Rectangle {
                 Label {
                     Layout.fillWidth: true
                     visible: d.isLocal && d.currentInterface
-                    font.pixelSize: 11
                     opacity: 0.7
                     text: {
                         if (!d.currentInterface || !d.isLocal) return "";
@@ -439,6 +440,7 @@ Rectangle {
 
                 // Topic Table
                 TopicTable {
+                    objectName: "recorderManagerTopicTable"
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     model: d.currentInterface ? d.currentInterface.topicsModel : null
@@ -451,11 +453,21 @@ Rectangle {
 
             BagBrowser {
                 id: bagBrowser
+                objectName: "recorderManagerBagBrowser"
                 recorderInterface: d.currentInterface
+
+                Component.onCompleted: {
+                    if (context._recentBagPaths)
+                        recentPaths = context._recentBagPaths;
+                }
+
+                onRecentPathsChanged: {
+                    context._recentBagPaths = recentPaths;
+                }
 
                 onStatusMessage: function(msg, isError) {
                     serviceStatusLabel.text = (isError ? "\u2717 " : "\u2713 ") + msg;
-                    serviceStatusLabel.color = isError ? "red" : "green";
+                    serviceStatusLabel.color = isError ? Material.color(Material.Red) : Material.color(Material.Green);
                     statusResetTimer.restart();
                 }
             }
@@ -472,6 +484,7 @@ Rectangle {
             target: tabBar
             function onCurrentIndexChanged() {
                 if (tabBar.currentIndex === 1) {
+                    root._initBagBrowserPath();
                     bagRefreshTimer.restart();
                 }
             }
@@ -486,8 +499,8 @@ Rectangle {
 
             Label {
                 id: serviceStatusLabel
+                objectName: "recorderManagerServiceStatusLabel"
                 color: palette.mid
-                font.pixelSize: 11
                 Layout.fillWidth: true
                 elide: Text.ElideMiddle
                 text: {
@@ -499,7 +512,7 @@ Rectangle {
                     target: d.currentInterface
                     function onServiceResponse(name, success, message) {
                         serviceStatusLabel.text = (success ? "\u2713 " : "\u2717 ") + name + ": " + message;
-                        serviceStatusLabel.color = success ? "green" : "red";
+                        serviceStatusLabel.color = success ? Material.color(Material.Green) : Material.color(Material.Red);
                         statusResetTimer.restart();
                     }
                 }
@@ -516,10 +529,10 @@ Rectangle {
             }
 
             Label {
+                objectName: "recorderManagerRemoteCountLabel"
                 property int remoteCount: d.recorderEntries.length - 1
                 text: d.isLocal ? "Local" : remoteCount + " remote recorder" + (remoteCount !== 1 ? "s" : "")
                 color: palette.mid
-                font.pixelSize: 11
             }
         }
     }
@@ -529,6 +542,7 @@ Rectangle {
     // ========================================================================
 
     Label {
+        objectName: "recorderManagerEmptyStateLabel"
         anchors.centerIn: parent
         visible: !d.currentInterface
         text: "No recorder selected."
@@ -543,6 +557,7 @@ Rectangle {
     // Start recording dialog
     Popup {
         id: outputDirDialog
+        objectName: "recorderManagerStartDialog"
         modal: true
         width: 450
         height: 220
@@ -593,6 +608,7 @@ Rectangle {
                 Label { text: "Directory:" }
                 TextField {
                     id: outputDirField
+                    objectName: "recorderManagerOutputDirField"
                     Layout.fillWidth: true
                     placeholderText: "~/bags/"
                 }
@@ -600,6 +616,7 @@ Rectangle {
                 Label { text: "Name:" }
                 TextField {
                     id: bagNameField
+                    objectName: "recorderManagerBagNameField"
                     Layout.fillWidth: true
                     placeholderText: "auto (rosbag2_YYYY_MM_DD-HH_mm_ss)"
                 }
@@ -609,7 +626,6 @@ Rectangle {
                 text: bagNameField.text
                     ? "Bag folder: " + outputDirField.text + bagNameField.text
                     : "A timestamped subfolder will be created automatically."
-                font.pixelSize: 11
                 opacity: 0.7
                 wrapMode: Text.Wrap
                 Layout.fillWidth: true
@@ -621,11 +637,13 @@ Rectangle {
                 Item { Layout.fillWidth: true }
 
                 Button {
+                    objectName: "recorderManagerStartDialogCancelButton"
                     text: "Cancel"
                     onClicked: outputDirDialog.close()
                 }
 
                 Button {
+                    objectName: "recorderManagerStartDialogConfirmButton"
                     text: "Start Recording"
                     highlighted: true
                     onClicked: {
@@ -648,9 +666,29 @@ Rectangle {
         }
     }
 
+    //! Initialize the BagBrowser path from the current recorder's config output dir
+    function _initBagBrowserPath() {
+        if (!d.currentInterface) return;
+
+        // Only set path if BagBrowser doesn't have one yet
+        if (bagBrowser.currentPath && bagBrowser.currentPath !== "") return;
+
+        d.currentInterface.fetchConfig(function(yaml) {
+            let m = yaml.match(/^output:\s*"?([^"\n]*)"?$/m);
+            let dir = m ? m[1] : "";
+            // Strip trailing rosbag2_* timestamp folder
+            dir = dir.replace(/\/rosbag2_[^/]+\/?$/, "/");
+            if (dir && dir !== "") {
+                bagBrowser.homePath = dir;
+                bagBrowser.setPath(dir);
+            }
+        });
+    }
+
     // Config editor dialog
     ConfigEditor {
         id: configEditor
+        objectName: "recorderManagerConfigEditor"
         recorderInterface: d.currentInterface
         savedConfigNames: PresetStore.presetNames
         onConfigSaved: function(name, yaml) {

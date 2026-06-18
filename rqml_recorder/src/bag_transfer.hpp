@@ -18,6 +18,12 @@ class BagTransfer : public QObject
   Q_PROPERTY( bool running READ running NOTIFY runningChanged )
   Q_PROPERTY( double progress READ progress NOTIFY progressChanged )
   Q_PROPERTY( QString statusText READ statusText NOTIFY statusTextChanged )
+  Q_PROPERTY( qint64 bytesTransferred READ bytesTransferred NOTIFY progressChanged )
+  Q_PROPERTY( qint64 bytesTotal READ bytesTotal NOTIFY progressChanged )
+  Q_PROPERTY( double speed READ speed NOTIFY progressChanged )
+  Q_PROPERTY( int etaSeconds READ etaSeconds NOTIFY progressChanged )
+  Q_PROPERTY( QString sourcePath READ sourcePath NOTIFY sourcePathChanged )
+  Q_PROPERTY( QString destPath READ destPath NOTIFY destPathChanged )
 
 public:
   explicit BagTransfer( QObject *parent = nullptr );
@@ -26,6 +32,12 @@ public:
   bool running() const;
   double progress() const;
   QString statusText() const;
+  qint64 bytesTransferred() const;
+  qint64 bytesTotal() const;
+  double speed() const;
+  int etaSeconds() const;
+  QString sourcePath() const;
+  QString destPath() const;
 
   /**
    * Start an rsync transfer.
@@ -43,6 +55,8 @@ signals:
   void runningChanged();
   void progressChanged();
   void statusTextChanged();
+  void sourcePathChanged();
+  void destPathChanged();
   void finished( bool success, const QString &message, const QString &localPath );
 
 private slots:
@@ -50,11 +64,22 @@ private slots:
   void onProcessFinished( int exitCode, QProcess::ExitStatus exitStatus );
 
 private:
+  void parseLine( const QString &line );
+
   QProcess *process_ = nullptr;
   bool running_ = false;
   double progress_ = 0.0;
   QString statusText_;
   QString localPath_;
+  QString sourcePath_;
+  QString destPath_;
+  qint64 bytesTransferred_ = 0;
+  qint64 bytesTotal_ = 0;
+  double speed_ = 0.0;
+  int etaSeconds_ = -1;
+  int filesTransferred_ = 0;
+  int filesTotal_ = 0;
+  QByteArray readBuffer_;
 };
 
 #endif // RQML_RECORDER_BAG_TRANSFER_HPP

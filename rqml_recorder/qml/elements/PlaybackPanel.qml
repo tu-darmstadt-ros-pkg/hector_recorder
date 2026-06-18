@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Material
 import QtQuick.Layouts
+import RQml.Fonts
 import "../utils.js" as Utils
 
 /**
@@ -18,6 +19,9 @@ Rectangle {
 
     //! Whether the panel is expanded (visible when a bag is loaded/playing)
     property bool expanded: engine && engine.state !== "idle"
+
+    //! Cached count of selected topics in the filter (recomputed on every mutation)
+    property int selectedTopicCount: 0
 
     implicitHeight: expanded ? contentLayout.implicitHeight + 16 : 0
     visible: implicitHeight > 0
@@ -60,28 +64,28 @@ Rectangle {
             }
 
             Label {
+                objectName: "playbackPanelStateLabel"
                 text: engine ? engine.state.charAt(0).toUpperCase() + engine.state.slice(1) : ""
                 font.bold: true
-                font.pixelSize: 12
             }
 
             Label {
+                objectName: "playbackPanelBagNameLabel"
                 text: engine ? engine.bagName : ""
-                font.pixelSize: 12
                 elide: Text.ElideMiddle
                 opacity: 0.7
                 Layout.fillWidth: true
             }
 
             Label {
+                objectName: "playbackPanelTopicCountLabel"
                 text: engine ? engine.topicCount + " topics, " + engine.messageCount + " msgs" : ""
-                font.pixelSize: 11
                 opacity: 0.5
             }
 
             Button {
+                objectName: "playbackPanelStopButton"
                 text: "\u23F9 Stop"
-                font.pixelSize: 11
                 flat: true
                 enabled: engine && engine.state !== "idle"
                 onClicked: engine.stop()
@@ -97,14 +101,15 @@ Rectangle {
             spacing: 8
 
             Label {
+                objectName: "playbackPanelCurrentTimeLabel"
                 text: engine ? Utils.formatDuration(engine.currentTime) : "0:00:00"
-                font.pixelSize: 11
                 font.family: "monospace"
                 Layout.preferredWidth: 55
             }
 
             Slider {
                 id: progressSlider
+                objectName: "playbackPanelProgressSlider"
                 Layout.fillWidth: true
                 from: 0; to: 1
                 value: engine ? engine.progress : 0
@@ -132,17 +137,17 @@ Rectangle {
             }
 
             Label {
+                objectName: "playbackPanelDurationLabel"
                 text: engine ? Utils.formatDuration(engine.duration) : "0:00:00"
-                font.pixelSize: 11
                 font.family: "monospace"
                 Layout.preferredWidth: 55
             }
 
             // Rate display
             Label {
+                objectName: "playbackPanelRateLabel"
                 text: engine ? engine.rate.toFixed(2) + "x" : "1.00x"
                 font.bold: true
-                font.pixelSize: 12
                 Layout.preferredWidth: 50
                 horizontalAlignment: Text.AlignRight
             }
@@ -158,6 +163,7 @@ Rectangle {
 
             // Step backward (seek to start)
             Button {
+                objectName: "playbackPanelStepBackButton"
                 text: "\u23EE"
                 font.pixelSize: 16
                 flat: true
@@ -170,7 +176,9 @@ Rectangle {
 
             // Play / Pause toggle
             Button {
-                text: engine && engine.state === "playing" ? "\u23F8" : "\u25B6"
+                objectName: "playbackPanelPlayPauseButton"
+                text: engine && engine.state === "playing" ? IconFont.iconPause : IconFont.iconPlay
+                font.family: IconFont.name
                 font.pixelSize: 18
                 flat: true
                 implicitWidth: 44; implicitHeight: 32
@@ -192,6 +200,7 @@ Rectangle {
 
             // Step forward (single message)
             Button {
+                objectName: "playbackPanelStepForwardButton"
                 text: "\u23ED"
                 font.pixelSize: 16
                 flat: true
@@ -203,15 +212,15 @@ Rectangle {
             }
 
             // Separator
-            Rectangle { width: 1; height: 24; color: palette.mid; opacity: 0.3 }
+            Rectangle { width: 1; height: 24; color: palette.text; opacity: 0.3 }
 
             // Speed presets
             Repeater {
                 model: [0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0]
 
                 Button {
+                    objectName: "playbackPanelRateButton_" + modelData
                     text: modelData + "x"
-                    font.pixelSize: 10
                     flat: true
                     implicitWidth: 44; implicitHeight: 28
                     highlighted: engine && Math.abs(engine.rate - modelData) < 0.01
@@ -223,6 +232,7 @@ Rectangle {
 
             // Loop toggle
             Button {
+                objectName: "playbackPanelLoopButton"
                 text: "\u21BB"  // clockwise arrow (loop)
                 font.pixelSize: 16
                 flat: true
@@ -254,8 +264,8 @@ Rectangle {
 
             CheckBox {
                 id: clockCheckbox
+                objectName: "playbackPanelClockCheckbox"
                 text: "Publish /clock"
-                font.pixelSize: 11
                 checked: engine ? engine.clockEnabled : false
                 onToggled: engine.clockEnabled = checked
             }
@@ -264,25 +274,25 @@ Rectangle {
                 spacing: 4
                 visible: clockCheckbox.checked
 
-                Label { text: "at"; font.pixelSize: 11; opacity: 0.7 }
+                Label { text: "at"; opacity: 0.7 }
                 SpinBox {
+                    objectName: "playbackPanelClockFreqSpinBox"
                     from: 1; to: 1000
                     value: engine ? engine.clockFrequency : 100
                     editable: true
-                    font.pixelSize: 11
                     implicitWidth: 90
                     onValueModified: engine.clockFrequency = value
                 }
-                Label { text: "Hz"; font.pixelSize: 11; opacity: 0.7 }
+                Label { text: "Hz"; opacity: 0.7 }
             }
 
             Item { Layout.fillWidth: true }
 
             // Error message
             Label {
+                objectName: "playbackPanelErrorLabel"
                 text: engine && engine.errorMessage ? engine.errorMessage : ""
                 color: Material.color(Material.Red)
-                font.pixelSize: 11
                 elide: Text.ElideRight
                 Layout.maximumWidth: 300
                 visible: text !== ""
@@ -299,36 +309,32 @@ Rectangle {
 
             Button {
                 id: topicFilterToggle
+                objectName: "playbackPanelTopicFilterToggle"
                 text: (topicFilterExpanded ? "\u25BC" : "\u25B6") + " Topic Filter"
-                font.pixelSize: 11
                 flat: true
                 property bool topicFilterExpanded: false
                 onClicked: topicFilterExpanded = !topicFilterExpanded
             }
 
             Label {
-                text: {
-                    if (!engine) return "";
-                    let selected = _countSelectedTopics();
-                    return selected + " / " + engine.topicCount + " selected";
-                }
-                font.pixelSize: 11
+                objectName: "playbackPanelTopicSelectedCountLabel"
+                text: engine ? root.selectedTopicCount + " / " + engine.topicCount + " selected" : ""
                 opacity: 0.5
             }
 
             Item { Layout.fillWidth: true }
 
             Button {
+                objectName: "playbackPanelTopicAllButton"
                 text: "All"
-                font.pixelSize: 10
                 flat: true
                 visible: topicFilterToggle.topicFilterExpanded
                 onClicked: _setAllTopics(true)
             }
 
             Button {
+                objectName: "playbackPanelTopicNoneButton"
                 text: "None"
-                font.pixelSize: 10
                 flat: true
                 visible: topicFilterToggle.topicFilterExpanded
                 onClicked: _setAllTopics(false)
@@ -345,12 +351,13 @@ Rectangle {
                 model: topicFilterModel
 
                 CheckBox {
+                    objectName: "playbackPanelTopicCheckbox_" + index
                     text: model.topic
-                    font.pixelSize: 11
                     checked: model.selected
                     onToggled: {
                         topicFilterModel.set(index, { selected: checked });
                         if (engine) engine.setTopicEnabled(model.topic, checked);
+                        root._updateSelectedCount();
                     }
                 }
             }
@@ -380,6 +387,7 @@ Rectangle {
         for (let i = 0; i < topics.length; i++) {
             topicFilterModel.append({ topic: topics[i], selected: true });
         }
+        _updateSelectedCount();
     }
 
     function _getSelectedTopics() {
@@ -397,12 +405,12 @@ Rectangle {
         return allSelected ? [] : result;
     }
 
-    function _countSelectedTopics() {
+    function _updateSelectedCount() {
         let count = 0;
         for (let i = 0; i < topicFilterModel.count; i++) {
             if (topicFilterModel.get(i).selected) count++;
         }
-        return count;
+        root.selectedTopicCount = count;
     }
 
     function _setAllTopics(selected) {
@@ -410,5 +418,6 @@ Rectangle {
             topicFilterModel.set(i, { selected: selected });
             if (engine) engine.setTopicEnabled(topicFilterModel.get(i).topic, selected);
         }
+        _updateSelectedCount();
     }
 }

@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Material
 import QtQuick.Layouts
+import RQml.Fonts
 import RqmlRecorder
 import "../utils.js" as Utils
 
@@ -26,6 +27,15 @@ Rectangle {
 
     //! Per-topic details for the selected bag
     property ListModel detailModel: ListModel {}
+
+    //! Current browse path (set from outside or via path bar)
+    property string currentPath: ""
+
+    //! Default "home" path for the recorder (from config)
+    property string homePath: ""
+
+    //! Recent paths (persisted via context)
+    property var recentPaths: []
 
     signal statusMessage(string msg, bool isError)
     signal playRequested(string bagPath, string bagName)
@@ -56,7 +66,8 @@ Rectangle {
 
     function refresh() {
         if (!recorderInterface) return;
-        recorderInterface.listBags("", function(bags) {
+        let path = currentPath || "";
+        recorderInterface.listBags(path, function(bags) {
             bagModel.clear();
             for (let i = 0; i < bags.length; i++) {
                 bagModel.append(bags[i]);
@@ -68,6 +79,20 @@ Rectangle {
         });
     }
 
+    function setPath(path) {
+        currentPath = path;
+        pathField.text = path;
+    }
+
+    function _addRecentPath(path) {
+        if (!path || path === "") return;
+        // Remove duplicates, add to front, keep max 10
+        let paths = recentPaths.filter(function(p) { return p !== path; });
+        paths.unshift(path);
+        if (paths.length > 10) paths = paths.slice(0, 10);
+        recentPaths = paths;
+    }
+
     // ========================================================================
     // Layout
     // ========================================================================
@@ -77,6 +102,163 @@ Rectangle {
         anchors.margins: 4
         spacing: 4
 
+        // ---- Path Bar ----
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 4
+
+            Label {
+                text: "Path:"
+            }
+
+            Item {
+                Layout.fillWidth: true
+                implicitHeight: pathField.implicitHeight
+                z: 10
+
+                TextField {
+                    id: pathField
+                    objectName: "bagBrowserPathField"
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    text: root.currentPath
+                    placeholderText: "~/bags/"
+                    selectByMouse: true
+
+                    onAccepted: {
+                        pathCompletionPopup.close();
+                        root.currentPath = text;
+                        _addRecentPath(text);
+                        root.refresh();
+                    }
+
+                    // Tab-completion: only fetch on Tab key (not on every keystroke)
+                    Keys.onPressed: function(event) {
+                        if (event.key === Qt.Key_Tab) {
+                            event.accepted = true;
+                            if (pathCompletionPopup.visible &&
+                                pathCompletionList.currentIndex >= 0 &&
+                                pathCompletionList.currentIndex < pathCompletionModel.count) {
+                                pathField.text = pathCompletionModel.get(pathCompletionList.currentIndex).path;
+                                pathField.cursorPosition = pathField.text.length;
+                            }
+                            _updatePathCompletions();
+                        } else if (pathCompletionPopup.visible) {
+                            if (event.key === Qt.Key_Down) {
+                                pathCompletionList.incrementCurrentIndex();
+                                event.accepted = true;
+                            } else if (event.key === Qt.Key_Up) {
+                                pathCompletionList.decrementCurrentIndex();
+                                event.accepted = true;
+                            } else if (event.key === Qt.Key_Escape) {
+                                pathCompletionPopup.close();
+                                event.accepted = true;
+                            }
+                        }
+                    }
+                }
+
+                // Path completion popup
+                Popup {
+                    id: pathCompletionPopup
+                    objectName: "bagBrowserPathCompletionPopup"
+                    y: pathField.height
+                    width: pathField.width
+                    height: Math.min(pathCompletionList.contentHeight + 8, 200)
+                    padding: 4
+                    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+                    background: Rectangle {
+                        color: palette.window
+                        border.color: palette.mid
+                        radius: 4
+                    }
+
+                    ListView {
+                        id: pathCompletionList
+                        objectName: "bagBrowserPathCompletionList"
+                        anchors.fill: parent
+                        model: pathCompletionModel
+                        clip: true
+                        currentIndex: 0
+
+                        delegate: ItemDelegate {
+                            objectName: "bagBrowserPathCompletionItem_" + index
+                            width: pathCompletionList.width
+                            height: 28
+                            highlighted: index === pathCompletionList.currentIndex
+
+                            contentItem: Label {
+                                text: model.path
+                                font.family: "monospace"
+                                elide: Text.ElideMiddle
+                                verticalAlignment: Text.AlignVCenter
+                            }
+
+                            onClicked: {
+                                pathField.text = model.path;
+                                pathField.cursorPosition = pathField.text.length;
+                                pathField.forceActiveFocus();
+                                _updatePathCompletions();
+                            }
+                        }
+                    }
+                }
+
+                ListModel { id: pathCompletionModel }
+            }
+
+            // Recent paths dropdown
+            ComboBox {
+                id: recentCombo
+                objectName: "bagBrowserRecentCombo"
+                Layout.preferredWidth: 36
+                visible: root.recentPaths.length > 0
+                model: root.recentPaths
+                displayText: "\u23F0" // clock icon
+                font.pixelSize: 14
+
+                onActivated: function(index) {
+                    if (index >= 0 && index < root.recentPaths.length) {
+                        pathField.text = root.recentPaths[index];
+                        root.currentPath = pathField.text;
+                        root.refresh();
+                    }
+                }
+
+                ToolTip.text: "Recent paths"
+                ToolTip.visible: hovered
+            }
+
+            Button {
+                objectName: "bagBrowserHomeButton"
+                text: "\u2302" // home
+                font.pixelSize: 14
+                flat: true
+                implicitWidth: 32
+                implicitHeight: 28
+                enabled: root.homePath !== ""
+                ToolTip.text: "Go to recorder default path"
+                ToolTip.visible: hovered
+                onClicked: {
+                    pathField.text = root.homePath;
+                    root.currentPath = root.homePath;
+                    root.refresh();
+                }
+            }
+
+            Button {
+                objectName: "bagBrowserScanButton"
+                text: "Scan"
+                highlighted: true
+                onClicked: {
+                    root.currentPath = pathField.text;
+                    _addRecentPath(pathField.text);
+                    root.refresh();
+                }
+            }
+        }
+
         // Header
         RowLayout {
             Layout.fillWidth: true
@@ -85,7 +267,6 @@ Rectangle {
             Label {
                 text: "Recorded Bags"
                 font.bold: true
-                font.pixelSize: 13
             }
 
             Item { Layout.fillWidth: true }
@@ -93,12 +274,11 @@ Rectangle {
             Label {
                 text: bagModel.count + " bag" + (bagModel.count !== 1 ? "s" : "")
                 color: palette.mid
-                font.pixelSize: 11
             }
 
             Button {
+                objectName: "bagBrowserRefreshButton"
                 text: "\u21BB Refresh"
-                font.pixelSize: 11
                 flat: true
                 onClicked: root.refresh()
             }
@@ -129,7 +309,6 @@ Rectangle {
                         text: label + (sortKey && root.sortColumn === sortKey
                               ? (root.sortAscending ? " \u25B2" : " \u25BC") : "")
                         font.bold: true
-                        font.pixelSize: 11
                         color: root.sortColumn === sortKey ? palette.highlight : palette.text
 
                         MouseArea {
@@ -146,19 +325,20 @@ Rectangle {
                         anchors.rightMargin: 8
                         spacing: 4
 
-                        SortableHeader { label: "Name";       sortKey: "name";       Layout.preferredWidth: 200; Layout.fillWidth: true }
-                        SortableHeader { label: "Date";       sortKey: "startTime";  Layout.preferredWidth: 140 }
-                        SortableHeader { label: "Duration";   sortKey: "durationSecs"; Layout.preferredWidth: 70; horizontalAlignment: Text.AlignRight }
-                        SortableHeader { label: "Size";       sortKey: "sizeBytes";  Layout.preferredWidth: 70; horizontalAlignment: Text.AlignRight }
-                        Label          { text: "Topics";     font.bold: true; font.pixelSize: 11; Layout.preferredWidth: 50; horizontalAlignment: Text.AlignRight }
-                        SortableHeader { label: "Recorded By"; sortKey: "recordedBy"; Layout.preferredWidth: 120 }
-                        Label          { text: "Actions";    font.bold: true; font.pixelSize: 11; Layout.preferredWidth: 136; horizontalAlignment: Text.AlignHCenter }
+                        SortableHeader { objectName: "bagBrowserSortName"; label: "Name";       sortKey: "name";       Layout.preferredWidth: 200; Layout.fillWidth: true }
+                        SortableHeader { objectName: "bagBrowserSortDate"; label: "Date";       sortKey: "startTime";  Layout.preferredWidth: 140 }
+                        SortableHeader { objectName: "bagBrowserSortDuration"; label: "Duration";   sortKey: "durationSecs"; Layout.preferredWidth: 70; horizontalAlignment: Text.AlignRight }
+                        SortableHeader { objectName: "bagBrowserSortSize"; label: "Size";       sortKey: "sizeBytes";  Layout.preferredWidth: 70; horizontalAlignment: Text.AlignRight }
+                        Label          { text: "Topics";     font.bold: true; Layout.preferredWidth: 50; horizontalAlignment: Text.AlignRight }
+                        SortableHeader { objectName: "bagBrowserSortRecordedBy"; label: "Recorded by"; sortKey: "recordedBy"; Layout.preferredWidth: 120 }
+                        Label          { text: "Actions";    font.bold: true; Layout.preferredWidth: 136; horizontalAlignment: Text.AlignHCenter }
                     }
                 }
 
                 // Bag list
                 ListView {
                     id: bagListView
+                    objectName: "bagBrowserBagListView"
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     model: bagModel
@@ -196,44 +376,39 @@ Rectangle {
                             Label {
                                 text: model.name
                                 elide: Text.ElideRight
-                                font.pixelSize: 12
                                 Layout.preferredWidth: 200
                                 Layout.fillWidth: true
                             }
 
                             Label {
                                 text: model.startTime
-                                font.pixelSize: 11
                                 opacity: 0.7
                                 Layout.preferredWidth: 140
                             }
 
                             Label {
                                 text: _formatDuration(model.durationSecs)
-                                font.pixelSize: 11
                                 horizontalAlignment: Text.AlignRight
                                 Layout.preferredWidth: 70
                             }
 
                             Label {
                                 text: _formatBytes(model.sizeBytes)
-                                font.pixelSize: 11
                                 horizontalAlignment: Text.AlignRight
                                 Layout.preferredWidth: 70
                             }
 
                             Label {
                                 text: model.topicCount
-                                font.pixelSize: 11
                                 horizontalAlignment: Text.AlignRight
                                 Layout.preferredWidth: 50
                             }
 
                             Label {
-                                text: model.recordedBy
-                                font.pixelSize: 11
+                                text: model.recordedBy || "unknown"
                                 elide: Text.ElideRight
-                                opacity: 0.7
+                                opacity: model.recordedBy ? 0.7 : 0.4
+                                font.italic: !model.recordedBy
                                 Layout.preferredWidth: 120
                             }
 
@@ -243,6 +418,7 @@ Rectangle {
                                 spacing: 4
 
                                 Button {
+                                    objectName: "bagBrowserPlayButton_" + index
                                     visible: root.recorderInterface && root.recorderInterface.supportsPlayback
                                     text: "\u25B6"  // play triangle
                                     font.pixelSize: 14
@@ -258,6 +434,7 @@ Rectangle {
                                 }
 
                                 Button {
+                                    objectName: "bagBrowserTransferButton_" + index
                                     visible: root.recorderInterface && root.recorderInterface.supportsTransfer
                                     text: "\uD83D\uDCE5"  // inbox tray (download)
                                     font.pixelSize: 16
@@ -273,6 +450,7 @@ Rectangle {
                                 }
 
                                 Button {
+                                    objectName: "bagBrowserDeleteButton_" + index
                                     visible: root.recorderInterface && root.recorderInterface.supportsDelete
                                     text: "\uD83D\uDDD1"  // wastebasket (delete)
                                     font.pixelSize: 16
@@ -295,6 +473,7 @@ Rectangle {
 
                 // Empty state
                 Label {
+                    objectName: "bagBrowserEmptyStateLabel"
                     Layout.fillWidth: true
                     Layout.fillHeight: bagModel.count === 0
                     visible: bagModel.count === 0
@@ -310,7 +489,7 @@ Rectangle {
             Rectangle {
                 id: detailPanel
                 Layout.fillHeight: true
-                Layout.preferredWidth: root.selectedIndex >= 0 ? 414 : 0
+                Layout.preferredWidth: root.selectedIndex >= 0 ? 550 : 0
                 color: Qt.darker(palette.base, 1.05)
                 clip: true
                 visible: Layout.preferredWidth > 0
@@ -343,14 +522,14 @@ Rectangle {
                             text: root.selectedIndex >= 0 && root.selectedIndex < bagModel.count
                                   ? bagModel.get(root.selectedIndex).name : ""
                             font.bold: true
-                            font.pixelSize: 12
                             elide: Text.ElideRight
                             Layout.fillWidth: true
                         }
 
                         Button {
-                            text: "\u2715"
-                            font.pixelSize: 12
+                            objectName: "bagBrowserDetailCloseButton"
+                            text: IconFont.iconClose
+                            font.family: IconFont.name
                             flat: true
                             padding: 2
                             implicitWidth: 24
@@ -368,7 +547,6 @@ Rectangle {
                                            ? bagModel.get(root.selectedIndex) : null
                         text: _bag ? "Duration: " + _formatDuration(_bag.durationSecs)
                               + "  |  Messages: " + _bag.messageCount : ""
-                        font.pixelSize: 11
                         opacity: 0.7
                     }
 
@@ -385,14 +563,15 @@ Rectangle {
                         Layout.fillWidth: true
                         spacing: 4
 
-                        Label { text: "Topic"; font.bold: true; font.pixelSize: 12; Layout.fillWidth: true }
-                        Label { text: "Type"; font.bold: true; font.pixelSize: 12; Layout.preferredWidth: 120 }
-                        Label { text: "Msgs"; font.bold: true; font.pixelSize: 12; Layout.preferredWidth: 50; horizontalAlignment: Text.AlignRight }
+                        Label { text: "Topic"; font.bold: true; Layout.fillWidth: true }
+                        Label { text: "Type"; font.bold: true; Layout.preferredWidth: 220 }
+                        Label { text: "Msgs"; font.bold: true; Layout.preferredWidth: 50; horizontalAlignment: Text.AlignRight }
                     }
 
                     // Topic list
                     ListView {
                         id: detailListView
+                        objectName: "bagBrowserDetailListView"
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         model: root.detailModel
@@ -405,20 +584,17 @@ Rectangle {
 
                             Label {
                                 text: model.name
-                                font.pixelSize: 12
                                 elide: Text.ElideMiddle
                                 Layout.fillWidth: true
                             }
                             Label {
                                 text: model.type
-                                font.pixelSize: 12
                                 elide: Text.ElideRight
                                 opacity: 0.7
-                                Layout.preferredWidth: 120
+                                Layout.preferredWidth: 220
                             }
                             Label {
                                 text: model.messageCount
-                                font.pixelSize: 12
                                 horizontalAlignment: Text.AlignRight
                                 Layout.preferredWidth: 50
                             }
@@ -427,9 +603,9 @@ Rectangle {
 
                     // Loading indicator
                     Label {
+                        objectName: "bagBrowserDetailLoadingLabel"
                         visible: root.detailModel.count === 0 && root.selectedIndex >= 0
                         text: "Loading..."
-                        font.pixelSize: 10
                         font.italic: true
                         color: palette.mid
                     }
@@ -437,38 +613,111 @@ Rectangle {
             }
         }
 
-        // Transfer progress bar
+        // ---- Transfer Progress Panel ----
         Rectangle {
             id: transferBar
             Layout.fillWidth: true
-            height: 32
+            implicitHeight: transferBarContent.implicitHeight + 16
             color: palette.window
             radius: 4
-            visible: bagTransfer.running
+            visible: bagTransfer.running || _transferJustFinished
 
-            RowLayout {
+            property bool _transferJustFinished: false
+            Connections {
+                target: bagTransfer
+                function onFinished(success, message, localPath) {
+                    if (success) {
+                        transferBar._transferJustFinished = true;
+                        transferFinishedTimer.restart();
+                    }
+                }
+            }
+            Timer {
+                id: transferFinishedTimer
+                interval: 5000
+                onTriggered: transferBar._transferJustFinished = false
+            }
+
+            ColumnLayout {
+                id: transferBarContent
                 anchors.fill: parent
-                anchors.margins: 4
-                spacing: 8
+                anchors.margins: 8
+                spacing: 4
 
-                ProgressBar {
+                // Source and destination
+                RowLayout {
                     Layout.fillWidth: true
-                    from: 0; to: 100
-                    value: bagTransfer.progress
+                    spacing: 8
+
+                    Label {
+                        text: "Source:"
+                        font.bold: true
+                        opacity: 0.7
+                    }
+                    Label {
+                        text: bagTransfer.sourcePath
+                        font.family: "monospace"
+                        elide: Text.ElideMiddle
+                        Layout.fillWidth: true
+                        opacity: 0.7
+                    }
                 }
 
-                Label {
-                    text: bagTransfer.statusText
-                    font.pixelSize: 10
-                    elide: Text.ElideRight
-                    Layout.preferredWidth: 200
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    Label {
+                        text: "Dest:"
+                        font.bold: true
+                        opacity: 0.7
+                    }
+                    Label {
+                        text: bagTransfer.destPath
+                        font.family: "monospace"
+                        elide: Text.ElideMiddle
+                        Layout.fillWidth: true
+                        opacity: 0.7
+                    }
                 }
 
-                Button {
-                    text: "Cancel"
-                    font.pixelSize: 10
-                    flat: true
-                    onClicked: bagTransfer.cancel()
+                // Progress bar
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    ProgressBar {
+                        Layout.fillWidth: true
+                        from: 0; to: 100
+                        value: bagTransfer.progress
+                    }
+
+                    Label {
+                        text: Math.round(bagTransfer.progress) + "%"
+                        font.bold: true
+                        Layout.preferredWidth: 40
+                        horizontalAlignment: Text.AlignRight
+                    }
+                }
+
+                // Status: transferred/total, speed, ETA
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+
+                    Label {
+                        text: bagTransfer.statusText
+                        elide: Text.ElideRight
+                        Layout.fillWidth: true
+                    }
+
+                    Button {
+                        objectName: "bagBrowserTransferCancelButton"
+                        text: "Cancel"
+                        flat: true
+                        visible: bagTransfer.running
+                        onClicked: bagTransfer.cancel()
+                    }
                 }
             }
         }
@@ -480,6 +729,7 @@ Rectangle {
 
     BagTransfer {
         id: bagTransfer
+        objectName: "bagBrowserBagTransfer"
 
         onFinished: function(success, message, localPath) {
             root.statusMessage(
@@ -492,6 +742,7 @@ Rectangle {
     // Transfer destination dialog
     Popup {
         id: transferDialog
+        objectName: "bagBrowserTransferDialog"
         modal: true
         width: 420
         height: 180
@@ -518,7 +769,6 @@ Rectangle {
 
             Label {
                 text: "From: " + (root._cachedHostname || "unknown")
-                font.pixelSize: 11
                 opacity: 0.7
             }
 
@@ -533,6 +783,7 @@ Rectangle {
 
                     TextField {
                         id: transferLocalDir
+                        objectName: "bagBrowserTransferLocalDirField"
                         anchors.left: parent.left
                         anchors.right: parent.right
                         text: _getDefaultTransferDir()
@@ -572,6 +823,7 @@ Rectangle {
 
                     Popup {
                         id: transferCompletionPopup
+                        objectName: "bagBrowserTransferCompletionPopup"
                         y: transferLocalDir.height
                         width: transferLocalDir.width
                         height: Math.min(transferCompletionList.contentHeight + 8, 200)
@@ -586,19 +838,20 @@ Rectangle {
 
                         ListView {
                             id: transferCompletionList
+                            objectName: "bagBrowserTransferCompletionList"
                             anchors.fill: parent
                             model: transferCompletionModel
                             clip: true
                             currentIndex: 0
 
                             delegate: ItemDelegate {
+                                objectName: "bagBrowserTransferCompletionItem_" + index
                                 width: transferCompletionList.width
                                 height: 28
                                 highlighted: index === transferCompletionList.currentIndex
 
                                 contentItem: Label {
                                     text: model.path
-                                    font.pixelSize: 12
                                     font.family: "monospace"
                                     elide: Text.ElideMiddle
                                     verticalAlignment: Text.AlignVCenter
@@ -625,11 +878,13 @@ Rectangle {
                 Item { Layout.fillWidth: true }
 
                 Button {
+                    objectName: "bagBrowserTransferDialogCancelButton"
                     text: "Cancel"
                     onClicked: transferDialog.close()
                 }
 
                 Button {
+                    objectName: "bagBrowserTransferDialogConfirmButton"
                     text: "Transfer"
                     highlighted: true
                     onClicked: {
@@ -653,6 +908,7 @@ Rectangle {
 
     Popup {
         id: deleteConfirmDialog
+        objectName: "bagBrowserDeleteConfirmDialog"
         modal: true
         width: 380
         height: 140
@@ -682,7 +938,6 @@ Rectangle {
                 text: "This will permanently remove the bag from the recorder's filesystem."
                 wrapMode: Text.Wrap
                 Layout.fillWidth: true
-                font.pixelSize: 11
             }
 
             RowLayout {
@@ -690,11 +945,13 @@ Rectangle {
                 Item { Layout.fillWidth: true }
 
                 Button {
+                    objectName: "bagBrowserDeleteDialogCancelButton"
                     text: "Cancel"
                     onClicked: deleteConfirmDialog.close()
                 }
 
                 Button {
+                    objectName: "bagBrowserDeleteDialogConfirmButton"
                     text: "Delete"
                     Material.background: Material.Red
                     Material.foreground: "white"
@@ -774,6 +1031,36 @@ Rectangle {
             cmp = String(va).localeCompare(String(vb));
         }
         return root.sortAscending ? cmp : -cmp;
+    }
+
+    function _updatePathCompletions() {
+        // For local recorders, use scanner. For remote, this is a no-op
+        // (user must use Tab to trigger, and only local scanner works)
+        if (!recorderInterface || !recorderInterface.isLocal) {
+            // Remote: could add a service call here later
+            pathCompletionPopup.close();
+            return;
+        }
+        let completions = _pathScanner.completePath(pathField.text);
+        pathCompletionModel.clear();
+
+        if (completions.length === 0) {
+            pathCompletionPopup.close();
+            return;
+        }
+
+        if (completions.length === 1 && completions[0] === pathField.text) {
+            pathCompletionPopup.close();
+            return;
+        }
+
+        for (let i = 0; i < completions.length; i++) {
+            pathCompletionModel.append({ path: completions[i] });
+        }
+
+        pathCompletionList.currentIndex = 0;
+        if (!pathCompletionPopup.visible)
+            pathCompletionPopup.open();
     }
 
     function _updateTransferCompletions() {

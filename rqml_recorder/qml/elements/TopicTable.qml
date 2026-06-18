@@ -120,6 +120,7 @@ Rectangle {
 
                 // Sortable header labels
                 Label {
+                    objectName: "topicTableHeaderTopic"
                     Layout.fillWidth: true
                     Layout.preferredWidth: 200
                     text: "Topic" + (root.sortColumn === "topic" ? (root.sortAscending ? " \u2191" : " \u2193") : "")
@@ -130,6 +131,7 @@ Rectangle {
                 }
 
                 Label {
+                    objectName: "topicTableHeaderMsgs"
                     Layout.preferredWidth: 60
                     text: "Msgs" + (root.sortColumn === "msgs" ? (root.sortAscending ? " \u2191" : " \u2193") : "")
                     font.bold: true
@@ -140,6 +142,7 @@ Rectangle {
                 }
 
                 Label {
+                    objectName: "topicTableHeaderFreq"
                     Layout.preferredWidth: 70
                     text: "Freq" + (root.sortColumn === "freq" ? (root.sortAscending ? " \u2191" : " \u2193") : "")
                     font.bold: true
@@ -150,6 +153,7 @@ Rectangle {
                 }
 
                 Label {
+                    objectName: "topicTableHeaderBandwidth"
                     Layout.preferredWidth: 80
                     text: "BW" + (root.sortColumn === "bandwidth" ? (root.sortAscending ? " \u2191" : " \u2193") : "")
                     font.bold: true
@@ -160,6 +164,7 @@ Rectangle {
                 }
 
                 Label {
+                    objectName: "topicTableHeaderSize"
                     Layout.preferredWidth: 70
                     text: "Size" + (root.sortColumn === "size" ? (root.sortAscending ? " \u2191" : " \u2193") : "")
                     font.bold: true
@@ -170,6 +175,7 @@ Rectangle {
                 }
 
                 Label {
+                    objectName: "topicTableHeaderType"
                     Layout.preferredWidth: 140
                     text: "Type" + (root.sortColumn === "type" ? (root.sortAscending ? " \u2191" : " \u2193") : "")
                     font.bold: true
@@ -183,6 +189,7 @@ Rectangle {
         // Topic List
         ListView {
             id: topicListView
+            objectName: "topicTableListView"
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
@@ -197,6 +204,7 @@ Rectangle {
 
             delegate: Rectangle {
                 id: delegateRoot
+                objectName: "topicTableRow_" + index
                 required property int index
                 required property var modelData
 
@@ -268,6 +276,7 @@ Rectangle {
 
             // Empty state
             Label {
+                objectName: "topicTableEmptyStateLabel"
                 anchors.centerIn: parent
                 visible: topicListView.count === 0
                 text: "No topics being recorded"

@@ -99,6 +99,11 @@ BagProviderInterface {
             serviceResponse("start", false, "Service client not available");
             return;
         }
+        if (!outputDir) {
+            Ros2.warn("RecorderInterface: refusing to start recording without an output directory");
+            serviceResponse("start", false, "Output directory is required");
+            return;
+        }
         startClient.sendRequestAsync({
             output_dir: outputDir || "",
             recorded_by: recordedBy || ""
@@ -142,6 +147,11 @@ BagProviderInterface {
 
     function applyConfig(yamlString, restart) {
         if (!configClient) return;
+        if (!yamlString) {
+            Ros2.warn("RecorderInterface: refusing to apply an empty config");
+            serviceResponse("config", false, "Config is empty");
+            return;
+        }
         configClient.sendRequestAsync({
             config_yaml: yamlString,
             restart: restart || false
@@ -332,6 +342,7 @@ BagProviderInterface {
 
     // Subscription
     property Subscription _statusSub: Subscription {
+        objectName: "recorderInterfaceStatusSubscription"
         topic: root.enabled ? root.statusTopic : ""
         messageType: "hector_recorder_msgs/msg/RecorderStatus"
         qos: Ros2.QoS().reliable().keep_last(10)

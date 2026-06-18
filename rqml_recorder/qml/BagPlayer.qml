@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Controls.Material
 import QtQuick.Layouts
 import RqmlRecorder
 import "elements"
@@ -15,8 +16,6 @@ Rectangle {
     color: palette.base
 
     Component.onCompleted: {
-        if (!context.bag_path)
-            context.bag_path = "~/bags/";
         // Auto-scan on startup after layout is settled
         autoScanTimer.start();
     }
@@ -33,11 +32,11 @@ Rectangle {
 
     LocalBagScanner {
         id: scanner
-        scanPath: context.bag_path || ""
+        scanPath: context.bag_path ?? "~/bags/"
 
         onServiceResponse: function(serviceName, success, message) {
             statusLabel.text = (success ? "\u2713 " : "\u2717 ") + message;
-            statusLabel.color = success ? "green" : "red";
+            statusLabel.color = success ? Material.color(Material.Green) : Material.color(Material.Red);
             statusResetTimer.restart();
         }
     }
@@ -54,7 +53,7 @@ Rectangle {
         onErrorMessageChanged: {
             if (errorMessage) {
                 statusLabel.text = "\u2717 " + errorMessage;
-                statusLabel.color = "red";
+                statusLabel.color = Material.color(Material.Red);
                 statusResetTimer.restart();
             }
         }
@@ -89,9 +88,10 @@ Rectangle {
 
                 TextField {
                     id: pathField
+                    objectName: "bagPlayerPathField"
                     anchors.left: parent.left
                     anchors.right: parent.right
-                    text: context.bag_path || ""
+                    text: context.bag_path ?? "~/bags/"
                     placeholderText: "~/bags/"
                     selectByMouse: true
 
@@ -134,6 +134,7 @@ Rectangle {
 
                 Popup {
                     id: completionPopup
+                    objectName: "bagPlayerCompletionPopup"
                     y: pathField.height
                     width: pathField.width
                     height: Math.min(completionList.contentHeight + 8, 250)
@@ -157,19 +158,20 @@ Rectangle {
 
                     ListView {
                         id: completionList
+                        objectName: "bagPlayerCompletionList"
                         anchors.fill: parent
                         model: completionModel
                         clip: true
                         currentIndex: 0
 
                         delegate: ItemDelegate {
+                            objectName: "bagPlayerCompletionItem_" + index
                             width: completionList.width
                             height: 28
                             highlighted: index === completionList.currentIndex
 
                             contentItem: Label {
                                 text: model.path
-                                font.pixelSize: 12
                                 font.family: "monospace"
                                 elide: Text.ElideMiddle
                                 verticalAlignment: Text.AlignVCenter
@@ -191,6 +193,7 @@ Rectangle {
             }
 
             Button {
+                objectName: "bagPlayerScanButton"
                 text: "Scan"
                 highlighted: true
                 onClicked: {
@@ -222,7 +225,7 @@ Rectangle {
 
             onStatusMessage: function(msg, isError) {
                 statusLabel.text = (isError ? "\u2717 " : "\u2713 ") + msg;
-                statusLabel.color = isError ? "red" : "green";
+                statusLabel.color = isError ? Material.color(Material.Red) : Material.color(Material.Green);
                 statusResetTimer.restart();
             }
 
@@ -241,9 +244,9 @@ Rectangle {
 
         Label {
             id: statusLabel
+            objectName: "bagPlayerStatusLabel"
             Layout.fillWidth: true
             color: palette.mid
-            font.pixelSize: 11
             elide: Text.ElideMiddle
             text: "Select a directory and click Scan to browse bags."
 
@@ -251,7 +254,7 @@ Rectangle {
                 id: statusResetTimer
                 interval: 5000
                 onTriggered: {
-                    statusLabel.text = "Scanning: " + (context.bag_path || "");
+                    statusLabel.text = "Scanning: " + (context.bag_path ?? "~/bags/");
                     statusLabel.color = palette.mid;
                 }
             }

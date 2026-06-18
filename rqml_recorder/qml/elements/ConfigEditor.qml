@@ -13,6 +13,7 @@ import RqmlRecorder
  */
 Popup {
     id: root
+    objectName: "configEditorDialog"
     modal: true
     width: Math.min(parent.width * 0.9, 950)
     height: Math.min(parent.height * 0.95, 850)
@@ -34,8 +35,22 @@ Popup {
     //! Cached lowercase filter text (debounced)
     property string _filterText: ""
 
+    //! When true, only show selected topics in the list
+    property bool _showSelectedOnly: false
+
     //! Revision counter to force badge re-evaluation on throttle edits
     property int _throttleRev: 0
+
+    //! Cached count of selected topics (recomputed on every selection mutation)
+    property int _selectedTopicCount: 0
+
+    function _updateSelectedCount() {
+        let count = 0;
+        for (let i = 0; i < topicListModel.count; i++) {
+            if (topicListModel.get(i).selected) count++;
+        }
+        root._selectedTopicCount = count;
+    }
 
     background: Rectangle {
         color: palette.window
@@ -60,7 +75,9 @@ Popup {
             Item { Layout.fillWidth: true }
 
             Button {
-                text: "\u2715"
+                objectName: "configEditorCloseButton"
+                text: IconFont.iconClose
+                font.family: IconFont.name
                 flat: true
                 onClicked: root.close()
             }
@@ -75,6 +92,7 @@ Popup {
 
             ComboBox {
                 id: presetCombo
+                objectName: "configEditorPresetCombo"
                 Layout.fillWidth: true
                 model: {
                     let names = Array.from(root.savedConfigNames || []);
@@ -95,6 +113,7 @@ Popup {
             }
 
             Button {
+                objectName: "configEditorLoadButton"
                 text: "Load"
                 onClicked: {
                     if (presetCombo.currentIndex === 0) {
@@ -109,6 +128,7 @@ Popup {
             }
 
             Button {
+                objectName: "configEditorDeleteButton"
                 text: "Delete"
                 enabled: presetCombo.currentIndex > 0
                 onClicked: {
@@ -121,10 +141,11 @@ Popup {
         // ---- Tab Bar ----
         TabBar {
             id: tabBar
+            objectName: "configEditorTabBar"
             Layout.fillWidth: true
 
-            TabButton { text: "Topic Selector" }
-            TabButton { text: "YAML Editor" }
+            TabButton { objectName: "configEditorTopicSelectorTab"; text: "Topic Selector" }
+            TabButton { objectName: "configEditorYamlEditorTab"; text: "YAML Editor" }
 
             onCurrentIndexChanged: {
                 // Sync YAML text when switching to YAML tab from topic selector
@@ -156,6 +177,7 @@ Popup {
                     Label { text: "Output:" }
                     TextField {
                         id: outputField
+                        objectName: "configEditorOutputField"
                         Layout.fillWidth: true
                         Layout.columnSpan: 3
                         placeholderText: "~/bags/"
@@ -165,12 +187,14 @@ Popup {
                     Label { text: "Storage:" }
                     ComboBox {
                         id: storageCombo
+                        objectName: "configEditorStorageCombo"
                         model: ["sqlite3", "mcap"]
                         currentIndex: 0
                     }
 
                     CheckBox {
                         id: allTopicsCheck
+                        objectName: "configEditorAllTopicsCheck"
                         text: "All Topics"
                         checked: false
                         onCheckedChanged: {
@@ -179,12 +203,14 @@ Popup {
                                 for (let i = 0; i < topicListModel.count; i++) {
                                     topicListModel.setProperty(i, "selected", false);
                                 }
+                                root._updateSelectedCount();
                             }
                         }
                     }
 
                     CheckBox {
                         id: publishStatusCheck
+                        objectName: "configEditorPublishStatusCheck"
                         text: "Publish Status"
                         checked: true
                     }
@@ -200,10 +226,34 @@ Popup {
                         font.bold: true
                     }
 
+                    Button {
+                        objectName: "configEditorClearAllButton"
+                        text: "Clear All"
+                        flat: true
+                        enabled: !allTopicsCheck.checked
+                        onClicked: {
+                            for (let i = 0; i < topicListModel.count; i++) {
+                                topicListModel.setProperty(i, "selected", false);
+                            }
+                            root._updateSelectedCount();
+                        }
+                    }
+
+                    Button {
+                        id: showSelectedBtn
+                        objectName: "configEditorShowSelectedToggle"
+                        text: root._showSelectedOnly ? "Show All" : "Selected Only"
+                        flat: true
+                        checkable: true
+                        checked: root._showSelectedOnly
+                        onToggled: root._showSelectedOnly = checked
+                    }
+
                     Item { Layout.fillWidth: true }
 
                     TextField {
                         id: topicFilter
+                        objectName: "configEditorTopicFilterField"
                         Layout.preferredWidth: 200
                         placeholderText: "Filter topics..."
                         onTextChanged: filterDebounce.restart()
@@ -217,6 +267,7 @@ Popup {
                     }
 
                     Button {
+                        objectName: "configEditorRefreshButton"
                         text: "Refresh"
                         onClicked: _fetchAvailableTopics()
                     }
@@ -225,6 +276,7 @@ Popup {
                 // ---- Topic List ----
                 ListView {
                     id: topicListView
+                    objectName: "configEditorTopicListView"
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     clip: true
@@ -235,6 +287,8 @@ Popup {
                         width: topicListView.width
                         height: visible ? 36 : 0
                         visible: {
+                            if (root._showSelectedOnly && !model.selected)
+                                return false;
                             return root._filterText.length === 0 ||
                                    model.topicName.toLowerCase().indexOf(root._filterText) >= 0;
                         }
@@ -247,10 +301,12 @@ Popup {
                             spacing: 8
 
                             CheckBox {
+                                objectName: "configEditorTopicCheckbox_" + index
                                 checked: model.selected
                                 enabled: !allTopicsCheck.checked
                                 onClicked: {
                                     topicListModel.setProperty(model.index, "selected", checked);
+                                    root._updateSelectedCount();
                                 }
                             }
 
@@ -289,7 +345,6 @@ Popup {
                                 Label {
                                     id: badgeLabel
                                     anchors.centerIn: parent
-                                    font.pixelSize: 10
                                     font.bold: !!throttleBadge._th
                                     color: throttleBadge._th ? Material.color(Material.Orange) : palette.text
                                     opacity: throttleBadge._th ? 1.0 : 0.5
@@ -320,7 +375,6 @@ Popup {
 
                             Label {
                                 text: model.topicType
-                                font.pixelSize: 11
                                 Layout.preferredWidth: 180
                                 elide: Text.ElideRight
                                 opacity: allTopicsCheck.checked ? 0.4 : 0.7
@@ -329,20 +383,29 @@ Popup {
                     }
 
                     ScrollBar.vertical: ScrollBar {}
+
+                    Label {
+                        objectName: "configEditorTopicEmptyStateLabel"
+                        anchors.centerIn: parent
+                        width: parent.width - 32
+                        horizontalAlignment: Text.AlignHCenter
+                        wrapMode: Text.Wrap
+                        color: palette.mid
+                        visible: topicListModel.count === 0
+                        text: !recorderInterface
+                            ? "No recorder connected."
+                            : "No topics available. Click Refresh to discover topics."
+                    }
                 }
 
                 // ---- Selection Summary ----
                 Label {
+                    objectName: "configEditorSelectionSummaryLabel"
                     Layout.fillWidth: true
                     color: palette.mid
-                    font.pixelSize: 11
                     text: {
                         if (allTopicsCheck.checked) return "All topics selected";
-                        let count = 0;
-                        for (let i = 0; i < topicListModel.count; i++) {
-                            if (topicListModel.get(i).selected) count++;
-                        }
-                        let s = count + " of " + topicListModel.count + " topics selected";
+                        let s = root._selectedTopicCount + " of " + topicListModel.count + " topics selected";
                         if (throttleModel.count > 0)
                             s += ", " + throttleModel.count + " throttled";
                         return s;
@@ -355,6 +418,7 @@ Popup {
                 // Throttle edit popup (reused for all topics)
                 Popup {
                     id: throttlePopup
+                    objectName: "configEditorThrottlePopup"
                     width: 280
                     height: throttlePopupContent.implicitHeight + 32
                     padding: 12
@@ -378,7 +442,6 @@ Popup {
                         Label {
                             text: throttlePopup.topicName
                             font.bold: true
-                            font.pixelSize: 11
                             elide: Text.ElideMiddle
                             Layout.fillWidth: true
                         }
@@ -388,6 +451,7 @@ Popup {
                             Label { text: "Type:" }
                             ComboBox {
                                 id: popupTypeCombo
+                                objectName: "configEditorThrottleTypeCombo"
                                 Layout.fillWidth: true
                                 model: ["msgs/s", "bytes/s"]
                             }
@@ -398,13 +462,13 @@ Popup {
                             Label { text: popupTypeCombo.currentIndex === 0 ? "Rate:" : "Limit:" }
                             TextField {
                                 id: popupValueField
+                                objectName: "configEditorThrottleValueField"
                                 Layout.fillWidth: true
                                 validator: DoubleValidator { bottom: 0 }
                             }
                             Label {
                                 text: popupTypeCombo.currentIndex === 0 ? "msgs/s" : "B/s"
                                 color: palette.mid
-                                font.pixelSize: 11
                             }
                         }
 
@@ -414,13 +478,13 @@ Popup {
                             Label { text: "Window:" }
                             TextField {
                                 id: popupWindowField
+                                objectName: "configEditorThrottleWindowField"
                                 Layout.fillWidth: true
                                 validator: DoubleValidator { bottom: 0.01 }
                             }
                             Label {
                                 text: "s"
                                 color: palette.mid
-                                font.pixelSize: 11
                             }
                         }
 
@@ -428,6 +492,7 @@ Popup {
                             spacing: 8
 
                             Button {
+                                objectName: "configEditorThrottleRemoveButton"
                                 text: "Remove"
                                 flat: true
                                 visible: root._getThrottle(throttlePopup.topicName) !== null
@@ -440,12 +505,14 @@ Popup {
                             Item { Layout.fillWidth: true }
 
                             Button {
+                                objectName: "configEditorThrottleCancelButton"
                                 text: "Cancel"
                                 flat: true
                                 onClicked: throttlePopup.close()
                             }
 
                             Button {
+                                objectName: "configEditorThrottleOkButton"
                                 text: "OK"
                                 highlighted: true
                                 onClicked: {
@@ -476,8 +543,8 @@ Popup {
 
                     TextArea {
                         id: configTextArea
+                        objectName: "configEditorConfigTextArea"
                         font.family: "monospace"
-                        font.pixelSize: 12
                         wrapMode: TextArea.WrapAnywhere
                         selectByMouse: true
                         text: ""
@@ -495,11 +562,13 @@ Popup {
 
             TextField {
                 id: presetNameField
+                objectName: "configEditorPresetNameField"
                 Layout.fillWidth: true
                 placeholderText: "Preset name"
             }
 
             Button {
+                objectName: "configEditorSaveButton"
                 text: "Save Preset"
                 enabled: presetNameField.text.length > 0
                 onClicked: {
@@ -518,6 +587,7 @@ Popup {
             Item { Layout.fillWidth: true }
 
             Button {
+                objectName: "configEditorApplyButton"
                 text: "Apply"
                 highlighted: true
                 enabled: root.recorderInterface
@@ -528,6 +598,7 @@ Popup {
             }
 
             Button {
+                objectName: "configEditorApplyRestartButton"
                 text: "Apply & Restart"
                 enabled: root.recorderInterface
                 onClicked: {
@@ -540,9 +611,9 @@ Popup {
         // ---- Status ----
         Label {
             id: statusLabel
+            objectName: "configEditorStatusLabel"
             Layout.fillWidth: true
             color: palette.mid
-            font.pixelSize: 11
             wrapMode: Text.Wrap
 
             Connections {
@@ -550,7 +621,7 @@ Popup {
                 function onServiceResponse(name, success, message) {
                     if (name === "config") {
                         statusLabel.text = (success ? "\u2713 " : "\u2717 ") + message;
-                        statusLabel.color = success ? "green" : "red";
+                        statusLabel.color = success ? Material.color(Material.Green) : Material.color(Material.Red);
                     }
                 }
             }
@@ -738,6 +809,7 @@ Popup {
             topicListModel.setProperty(j, "selected",
                 yamlTopics.indexOf(name) >= 0);
         }
+        _updateSelectedCount();
 
         // Populate throttle rules
         let throttleMap = _parseThrottleConfigs(yaml);
@@ -864,6 +936,7 @@ Popup {
                     selected: selectedSet[name] === true
                 });
             }
+            _updateSelectedCount();
 
             // Populate throttle rules from config YAML (only on first load,
             // i.e. when throttleModel is still empty)
