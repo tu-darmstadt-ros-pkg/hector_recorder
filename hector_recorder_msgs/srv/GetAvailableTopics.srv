@@ -1,0 +1,4 @@
+# Query all topics discoverable from the recorder's ROS graph
+---
+string[] topics                 # List of topic names
+string[] types                  # Corresponding message types

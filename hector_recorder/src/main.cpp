@@ -1,7 +1,7 @@
 #include "CLI11.hpp"
 #include "hector_recorder/arg_parser.hpp"
 #include "hector_recorder/terminal_ui.hpp"
-#include "hector_recorder/utils.h"
+#include "hector_recorder/config_yaml.h"
 #include "rclcpp/rclcpp.hpp"
 #include <string>
 #include <vector>
@@ -38,6 +38,9 @@ int main( int argc, char **argv )
                   "--services, --topics, --topic-types, --regex or specify them in --config" );
     return 0; // Exit if no valid recording options are provided
   }
+
+  // Resolve output directory now that all config sources have been processed
+  storage_options.uri = resolveOutputDirectory( storage_options.uri );
 
   // Ensure that topics and services start with a slash
   ensureLeadingSlash( record_options.topics );

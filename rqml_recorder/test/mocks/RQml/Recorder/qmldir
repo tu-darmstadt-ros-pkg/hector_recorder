@@ -1,0 +1,6 @@
+module RqmlRecorder
+BagRecorderEngine 1.0 BagRecorderEngine.qml
+BagPlayerEngine 1.0 BagPlayerEngine.qml
+LocalBagScanner 1.0 LocalBagScanner.qml
+PresetStore 1.0 PresetStore.qml
+BagTransfer 1.0 BagTransfer.qml

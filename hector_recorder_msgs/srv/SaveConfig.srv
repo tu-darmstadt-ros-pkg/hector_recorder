@@ -1,0 +1,5 @@
+string config_yaml              # YAML config content to save
+string file_path                # Path on the recorder's filesystem to save to
+---
+bool success
+string message

@@ -1,15 +1,20 @@
-#pragma once
+#ifndef HECTOR_RECORDER_TOPIC_INFORMATION_HPP
+#define HECTOR_RECORDER_TOPIC_INFORMATION_HPP
 
 #include <boost/accumulators/accumulators.hpp>
 #include <boost/accumulators/statistics/rolling_mean.hpp>
 #include <boost/accumulators/statistics/stats.hpp>
 
-#include <iostream>
+#include <chrono>
+#include <string>
 
 namespace hector_recorder
 {
 
 namespace ba = boost::accumulators;
+
+/// If no message is received for this duration, frequency and bandwidth report zero.
+constexpr double kStaleDataTimeoutSec = 3.0;
 
 class TopicInformation
 {
@@ -54,14 +59,7 @@ public:
 
   double mean_frequency() const
   {
-    if ( message_count_ < 2 ) {
-      return 0.0;
-    }
-
-    auto now = std::chrono::steady_clock::now();
-    auto diff = now - last_update_;
-    double diff_in_seconds = std::chrono::duration_cast<std::chrono::seconds>( diff ).count();
-    if ( diff_in_seconds > 3.0 ) {
+    if ( message_count_ < 2 || isDataStale() ) {
       return 0.0;
     }
 
@@ -70,14 +68,7 @@ public:
 
   size_t bandwidth() const
   {
-    if ( message_count_ < 2 ) {
-      return 0;
-    }
-
-    auto now = std::chrono::steady_clock::now();
-    auto diff = now - last_update_;
-    double diff_in_seconds = std::chrono::duration_cast<std::chrono::seconds>( diff ).count();
-    if ( diff_in_seconds > 3.0 ) {
+    if ( message_count_ < 2 || isDataStale() ) {
       return 0;
     }
 
@@ -86,6 +77,12 @@ public:
   }
 
 private:
+  bool isDataStale() const
+  {
+    auto elapsed = std::chrono::steady_clock::now() - last_update_;
+    return std::chrono::duration_cast<std::chrono::seconds>( elapsed ).count() > kStaleDataTimeoutSec;
+  }
+
   size_t message_count_ = 0;
   size_t size_ = 0;
   std::string topic_type_;
@@ -98,3 +95,5 @@ private:
 };
 
 } // namespace hector_recorder
+
+#endif // HECTOR_RECORDER_TOPIC_INFORMATION_HPP

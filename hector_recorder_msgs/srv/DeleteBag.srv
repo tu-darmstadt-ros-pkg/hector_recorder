@@ -1,0 +1,6 @@
+# Delete a recorded bag file
+string bag_path                     # Absolute path to the bag directory to delete
+bool confirm                        # Must be true to actually delete (safety check)
+---
+bool success
+string message

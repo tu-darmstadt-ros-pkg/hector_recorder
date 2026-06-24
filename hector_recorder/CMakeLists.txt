@@ -17,10 +17,13 @@ set(LIBRARY_NAME hector_recorder_lib)
 # set(EXECUTABLE_NAME server)
 
 # Add library
-add_library(${LIBRARY_NAME} SHARED 
+add_library(${LIBRARY_NAME} SHARED
         src/arg_parser.cpp
         src/modified/recorder_impl.cpp
-        src/utils.cpp   
+        src/utils.cpp
+        src/config_yaml.cpp
+        src/service_handlers.cpp
+        src/recorder_node.cpp
         )
 
 # Include directories
@@ -56,6 +59,24 @@ target_link_libraries(record
   ${rclcpp_LIBRARIES}
   fmt::fmt
   ${CURSES_LIBRARIES}
+  yaml-cpp
+)
+
+# Headless recorder executable (no ncurses dependency)
+add_executable(record_headless
+        src/main_headless.cpp
+)
+
+ament_target_dependencies(record_headless
+  rclcpp
+  hector_recorder_msgs
+  fmt
+)
+
+target_link_libraries(record_headless
+  ${LIBRARY_NAME}
+  ${rclcpp_LIBRARIES}
+  fmt::fmt
   yaml-cpp
 )
 
@@ -95,7 +116,48 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}
 )
 
+if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_utils test/test_utils.cpp)
+  target_link_libraries(test_utils
+    ${LIBRARY_NAME}
+    yaml-cpp
+  )
+
+  # rtest-based integration tests for RecorderNode service layer
+  find_package(ament_cmake_gmock QUIET)
+  find_package(GTest CONFIG QUIET COMPONENTS GTest GMock)
+  find_package(rtest QUIET)
+  if(ament_cmake_gmock_FOUND AND GTest_FOUND AND rtest_FOUND)
+    test_tools_add_doubles(
+      ${LIBRARY_NAME}
+      AMENT_DEPENDENCIES
+        ${rclcpp_TARGETS}
+        ${rosbag2_cpp_TARGETS}
+        ${rosbag2_transport_TARGETS}
+        ${rosbag2_storage_TARGETS}
+        ${rosbag2_interfaces_TARGETS}
+        ${hector_recorder_msgs_TARGETS}
+        yaml-cpp
+        fmt::fmt
+    )
+
+    target_include_directories(${LIBRARY_NAME}_test_doubles
+      PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    )
+
+    ament_add_gmock(test_recorder_node test/test_recorder_node.cpp)
+    target_include_directories(test_recorder_node PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/include
+      ${CMAKE_CURRENT_SOURCE_DIR}/test
+    )
+    target_link_libraries(test_recorder_node
+      ${PROJECT_NAME}::${LIBRARY_NAME}_test_doubles
+    )
+  endif()
+endif()
+
 ament_package()
 
-install(TARGETS record
+install(TARGETS record record_headless
         DESTINATION lib/${PROJECT_NAME})

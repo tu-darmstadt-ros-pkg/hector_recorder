@@ -219,6 +219,53 @@ void RecorderImpl::pause()
   }
 }
 
+void RecorderImpl::resume()
+{
+  if (!paused_.exchange(false)) {
+    RCLCPP_DEBUG(node->get_logger(), "Recorder is not paused.");
+  } else {
+    RCLCPP_INFO_STREAM(node->get_logger(), "Resuming recording.");
+  }
+}
+
+void RecorderImpl::update_record_options( const rosbag2_transport::RecordOptions &new_options )
+{
+  // Stop existing discovery thread
+  stop_discovery();
+
+  record_options_ = new_options;
+  topic_filter_ = std::make_unique<rosbag2_transport::TopicFilter>(
+      record_options_, node->get_node_graph_interface());
+
+  // Restart discovery: stop_discovery() left the flag as true and the future completed.
+  // We must reset the flag and launch a new async thread directly, since start_discovery()
+  // misinterprets the state after a stop+start cycle.
+  {
+    std::lock_guard<std::mutex> state_lock(discovery_mutex_);
+    stop_discovery_.store(false);
+    discovery_future_ =
+      std::async(std::launch::async, std::bind(&RecorderImpl::topics_discovery, this));
+  }
+
+  RCLCPP_INFO(node->get_logger(), "Record options updated, topic discovery restarted. "
+      "Requested topics: %zu, current subscriptions: %zu",
+      record_options_.topics.size(), subscriptions_.size());
+}
+
+void RecorderImpl::update_throttle_configs( const ThrottleConfigMap &new_configs )
+{
+  std::lock_guard<std::mutex> lock(throttle_mutex_);
+  throttle_configs_ = new_configs;
+  // Clear stale state for topics no longer throttled
+  for (auto it = throttle_states_.begin(); it != throttle_states_.end(); ) {
+    if (new_configs.find(it->first) == new_configs.end()) {
+      it = throttle_states_.erase(it);
+    } else {
+      ++it;
+    }
+  }
+}
+
 void RecorderImpl::start_discovery()
 {
   std::lock_guard<std::mutex> state_lock(discovery_mutex_);
@@ -274,17 +321,25 @@ void RecorderImpl::topics_discovery()
         warn_if_new_qos_for_subscribed_topic(topic_and_type.first);
       }
       auto missing_topics = get_missing_topics(topics_to_subscribe);
+      if (!missing_topics.empty()) {
+        RCLCPP_INFO(node->get_logger(), "Discovery found %zu missing topics to subscribe.",
+                    missing_topics.size());
+        for (const auto & [name, type] : missing_topics) {
+          RCLCPP_INFO(node->get_logger(), "  Missing topic: %s [%s]", name.c_str(), type.c_str());
+        }
+      }
       subscribe_topics(missing_topics);
 
       // Update topic publisher info
       update_topic_publisher_info();
 
       if (!record_options_.topics.empty() &&
-        subscriptions_.size() == record_options_.topics.size())
+        subscriptions_.size() >= record_options_.topics.size())
       {
         RCLCPP_INFO(
           node->get_logger(),
-          "All requested topics are subscribed. Stopping discovery...");
+          "All requested topics are subscribed (%zu/%zu). Stopping discovery...",
+          subscriptions_.size(), record_options_.topics.size());
         return;
       }
     } catch (const std::exception & e) {

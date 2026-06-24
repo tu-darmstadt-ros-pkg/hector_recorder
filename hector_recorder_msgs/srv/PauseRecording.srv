@@ -1,0 +1,4 @@
+# Pause current recording
+---
+bool success
+string message

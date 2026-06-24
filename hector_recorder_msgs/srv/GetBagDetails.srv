@@ -1,0 +1,7 @@
+# Get detailed per-topic info for a specific bag
+string bag_path                     # Absolute path to the bag directory
+---
+hector_recorder_msgs/BagInfo info   # Summary info
+hector_recorder_msgs/BagTopicInfo[] topics  # Per-topic breakdown
+bool success
+string message

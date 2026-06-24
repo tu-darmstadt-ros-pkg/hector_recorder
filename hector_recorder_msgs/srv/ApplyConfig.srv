@@ -1,0 +1,6 @@
+string config_yaml              # Full YAML config string (same format as the config file)
+bool restart                    # If true AND currently recording, stop and restart with new config
+---
+bool success
+string message
+string active_config_yaml       # The actual config now active (echoed back for confirmation)

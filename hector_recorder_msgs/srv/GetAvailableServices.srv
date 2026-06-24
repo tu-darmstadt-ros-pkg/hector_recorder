@@ -1,0 +1,5 @@
+# Query all services discoverable from the recorder's ROS graph
+# (excludes infrastructure services like parameters, lifecycle, etc.)
+---
+string[] services                # List of service names
+string[] types                   # Corresponding service types

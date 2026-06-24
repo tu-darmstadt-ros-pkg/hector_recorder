@@ -1,0 +1,3 @@
+# Query the current active configuration as YAML
+---
+string config_yaml              # Current active YAML config string

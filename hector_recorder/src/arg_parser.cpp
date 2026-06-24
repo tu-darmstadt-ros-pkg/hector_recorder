@@ -1,4 +1,5 @@
 #include <hector_recorder/arg_parser.hpp>
+#include <hector_recorder/config_yaml.h>
 
 using namespace hector_recorder;
 

@@ -1,0 +1,6 @@
+string output_dir               # Optional: override output directory. Empty = use config default.
+string recorded_by              # Optional: override recorded_by (e.g. "alice@laptop"). Empty = use default.
+---
+bool success
+string message                  # Error message if success is false
+string bag_path                 # Actual path of the bag being written
