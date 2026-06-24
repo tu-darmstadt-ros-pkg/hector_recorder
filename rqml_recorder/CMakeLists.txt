@@ -12,7 +12,7 @@ qt_standard_project_setup()
 
 # Build the QML module with the PresetStore C++ type
 qt_add_qml_module(rqml_recorder_plugin
-  URI RqmlRecorder
+  URI RQml.Recorder
   VERSION 1.0
   SOURCES
     src/preset_store.hpp
@@ -25,7 +25,7 @@ qt_add_qml_module(rqml_recorder_plugin
     src/bag_player_engine.cpp
     src/bag_recorder_engine.hpp
     src/bag_recorder_engine.cpp
-  OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/RqmlRecorder"
+  OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/RQml/Recorder"
 )
 
 target_include_directories(rqml_recorder_plugin PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -33,8 +33,8 @@ target_link_libraries(rqml_recorder_plugin PRIVATE Qt6::Core Qt6::Qml Qt6::Netwo
 ament_target_dependencies(rqml_recorder_plugin PUBLIC rclcpp rosbag2_cpp rosbag2_storage rosgraph_msgs)
 
 # Install the QML module so rqml can find it at runtime
-install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/RqmlRecorder"
-  DESTINATION lib/qt6/qml)
+install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/RQml"
+  DESTINATION share/${PROJECT_NAME})
 
 # Install plugin QML files
 install(DIRECTORY qml DESTINATION share/${PROJECT_NAME})
@@ -42,16 +42,16 @@ install(DIRECTORY qml DESTINATION share/${PROJECT_NAME})
 # Register the plugin resource
 ament_index_register_resource(rqml_plugin CONTENT_FILE rqml_plugins.yaml.in)
 
-# Register QML import path so rqml can find the RqmlRecorder module
+# Register QML import path so rqml can find the RQml.Recorder module
 ament_environment_hooks(register_qml_module.dsv.in)
 
 if(BUILD_TESTING)
   find_package(Qt6 REQUIRED COMPONENTS QuickTest)
   find_package(qml6_ros2_plugin REQUIRED)
 
-  # Build mock Ros2 and RqmlRecorder modules in the build tree
+  # Build mock Ros2 and RQml.Recorder modules in the build tree
   set(MOCK_ROS2_DIR "${CMAKE_CURRENT_BINARY_DIR}/test_mocks/Ros2")
-  set(MOCK_RQML_RECORDER_DIR "${CMAKE_CURRENT_BINARY_DIR}/test_mocks/RqmlRecorder")
+  set(MOCK_RQML_RECORDER_DIR "${CMAKE_CURRENT_BINARY_DIR}/test_mocks/RQml/Recorder")
   file(MAKE_DIRECTORY "${MOCK_ROS2_DIR}")
   file(MAKE_DIRECTORY "${MOCK_RQML_RECORDER_DIR}")
 
@@ -63,7 +63,7 @@ if(BUILD_TESTING)
             COPY_ON_ERROR SYMBOLIC)
   endforeach()
 
-  file(GLOB _MOCK_RECORDER_FILES "${CMAKE_CURRENT_SOURCE_DIR}/test/mocks/RqmlRecorder/*")
+  file(GLOB _MOCK_RECORDER_FILES "${CMAKE_CURRENT_SOURCE_DIR}/test/mocks/RQml/Recorder/*")
   foreach(mock_file ${_MOCK_RECORDER_FILES})
     get_filename_component(_fname "${mock_file}" NAME)
     file(CREATE_LINK

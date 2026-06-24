@@ -5,7 +5,7 @@ import QtQuick.Layouts
 import Ros2
 import RQml.Elements
 import RQml.Fonts
-import RqmlRecorder
+import RQml.Recorder
 import "interfaces"
 import "elements"
 import "utils.js" as Utils

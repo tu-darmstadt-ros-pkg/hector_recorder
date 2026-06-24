@@ -1,7 +1,7 @@
 import QtQuick
 import QtTest
 import "../qml/interfaces" as Interfaces
-import RqmlRecorder
+import RQml.Recorder
 
 Item {
     id: windowRoot

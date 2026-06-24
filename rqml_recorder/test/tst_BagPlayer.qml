@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtTest
 import "../qml" as PluginQml
-import RqmlRecorder
+import RQml.Recorder
 
 Item {
     id: windowRoot

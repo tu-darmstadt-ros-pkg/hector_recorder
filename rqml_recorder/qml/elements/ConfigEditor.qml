@@ -4,7 +4,7 @@ import QtQuick.Controls.Material
 import QtQuick.Layouts
 import RQml.Elements
 import RQml.Fonts
-import RqmlRecorder
+import RQml.Recorder
 
 /**
  * Dialog for editing and managing recorder configurations.

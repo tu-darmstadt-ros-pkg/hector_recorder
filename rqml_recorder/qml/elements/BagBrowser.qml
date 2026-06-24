@@ -3,7 +3,7 @@ import QtQuick.Controls
 import QtQuick.Controls.Material
 import QtQuick.Layouts
 import RQml.Fonts
-import RqmlRecorder
+import RQml.Recorder
 import "../utils.js" as Utils
 
 /**

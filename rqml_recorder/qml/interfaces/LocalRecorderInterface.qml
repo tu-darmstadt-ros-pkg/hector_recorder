@@ -1,5 +1,5 @@
 import QtQuick
-import RqmlRecorder
+import RQml.Recorder
 
 /**
  * Local recording interface that implements the same API contract as
