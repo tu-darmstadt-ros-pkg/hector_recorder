@@ -10,6 +10,7 @@
 #include <rclcpp/init_options.hpp>
 #include <rclcpp/serialized_message.hpp>
 #include <rosbag2_storage/storage_filter.hpp>
+#include <rosbag2_storage/storage_options.hpp>
 
 namespace fs = std::filesystem;
 
@@ -38,8 +39,6 @@ BagPlayerEngine::BagPlayerEngine( QObject *parent ) : QObject( parent )
   playbackTimer_.setInterval( 1 ); // 1ms tick
   connect( &playbackTimer_, &QTimer::timeout, this, &BagPlayerEngine::onPlaybackTick );
 
-  clockTimer_.setTimerType( Qt::PreciseTimer );
-  connect( &clockTimer_, &QTimer::timeout, this, &BagPlayerEngine::onClockTick );
 }
 
 BagPlayerEngine::~BagPlayerEngine()
@@ -75,7 +74,6 @@ double BagPlayerEngine::progress() const
 }
 
 bool BagPlayerEngine::clockEnabled() const { return clockEnabled_; }
-double BagPlayerEngine::clockFrequency() const { return clockFrequency_; }
 int BagPlayerEngine::topicCount() const { return topicCount_; }
 int BagPlayerEngine::messageCount() const { return messageCount_; }
 QStringList BagPlayerEngine::topicList() const { return topicList_; }
@@ -115,31 +113,11 @@ void BagPlayerEngine::setClockEnabled( bool enabled )
   if ( clockEnabled_ == enabled )
     return;
   clockEnabled_ = enabled;
-
   if ( enabled && node_ && !clockPublisher_ ) {
     clockPublisher_ = node_->create_publisher<rosgraph_msgs::msg::Clock>(
         "/clock", rclcpp::ClockQoS() );
   }
-  if ( enabled && ( state_ == "playing" ) ) {
-    clockTimer_.start( static_cast<int>( 1000.0 / clockFrequency_ ) );
-  } else {
-    clockTimer_.stop();
-  }
-
   emit clockEnabledChanged();
-}
-
-void BagPlayerEngine::setClockFrequency( double hz )
-{
-  if ( hz <= 0.0 )
-    return;
-  if ( qFuzzyCompare( clockFrequency_, hz ) )
-    return;
-  clockFrequency_ = hz;
-  if ( clockTimer_.isActive() ) {
-    clockTimer_.setInterval( static_cast<int>( 1000.0 / hz ) );
-  }
-  emit clockFrequencyChanged();
 }
 
 // ============================================================================
@@ -181,7 +159,11 @@ void BagPlayerEngine::load( const QString &bagPath )
 
   try {
     reader_ = std::make_unique<rosbag2_cpp::Reader>();
-    reader_->open( path );
+    rosbag2_storage::StorageOptions storage_options;
+    storage_options.uri = path;
+    // storage_id_ is empty on first open — rosbag2 auto-detects and we store it from metadata
+    storage_options.storage_id = storageId_;
+    reader_->open( storage_options );
 
     auto metadata = reader_->get_metadata();
 
@@ -195,6 +177,7 @@ void BagPlayerEngine::load( const QString &bagPath )
                                   metadata.duration )
                                   .count();
     messageCount_ = static_cast<int>( metadata.message_count );
+    storageId_ = metadata.storage_identifier;
 
     topicList_.clear();
     for ( const auto &ti : metadata.topics_with_message_count ) {
@@ -257,13 +240,10 @@ void BagPlayerEngine::play( const QStringList &topicFilter )
   lastMsgBagTimeNs_ = currentBagTimeNs_;
   playbackTimer_.start();
 
-  if ( clockEnabled_ ) {
-    if ( !clockPublisher_ ) {
-      ensureNode();
-      clockPublisher_ = node_->create_publisher<rosgraph_msgs::msg::Clock>(
-          "/clock", rclcpp::ClockQoS() );
-    }
-    clockTimer_.start( static_cast<int>( 1000.0 / clockFrequency_ ) );
+  if ( clockEnabled_ && !clockPublisher_ ) {
+    ensureNode();
+    clockPublisher_ = node_->create_publisher<rosgraph_msgs::msg::Clock>(
+        "/clock", rclcpp::ClockQoS() );
   }
 
   setState( "playing" );
@@ -274,7 +254,6 @@ void BagPlayerEngine::pause()
   if ( state_ != "playing" )
     return;
   playbackTimer_.stop();
-  clockTimer_.stop();
   setState( "paused" );
 }
 
@@ -286,11 +265,6 @@ void BagPlayerEngine::resume()
   wallTimeAtLastMsg_ = std::chrono::steady_clock::now();
   lastMsgBagTimeNs_ = currentBagTimeNs_;
   playbackTimer_.start();
-
-  if ( clockEnabled_ ) {
-    clockTimer_.start( static_cast<int>( 1000.0 / clockFrequency_ ) );
-  }
-
   setState( "playing" );
 }
 
@@ -301,7 +275,6 @@ void BagPlayerEngine::stop()
   stopping_ = true;
 
   playbackTimer_.stop();
-  clockTimer_.stop();
 
   // Reset playback state before closing reader to avoid re-entrant access
   pendingMsg_.reset();
@@ -335,12 +308,15 @@ void BagPlayerEngine::seek( double seconds )
       bagStartNs_ + static_cast<rcutils_time_point_value_t>( seconds * 1e9 );
   target_ns = std::clamp( target_ns, bagStartNs_, bagEndNs_ );
 
+  // Release any buffered message before closing the reader — the reader owns
+  // the message buffer, so pendingMsg_ must be dropped first.
+  pendingMsg_.reset();
+
   // Reader::seek can fail or behave oddly if the bag was fully consumed.
   // Reopen the bag and seek to the target.
   reopenAndSeek( target_ns );
 
   currentBagTimeNs_ = target_ns;
-  pendingMsg_.reset();
 
   // Reset timing anchor
   wallTimeAtLastMsg_ = std::chrono::steady_clock::now();
@@ -390,6 +366,11 @@ void BagPlayerEngine::onPlaybackTick()
     if ( pendingMsg_ ) {
       msg = std::move( pendingMsg_ );
     } else {
+      if ( !reader_ ) {
+        playbackTimer_.stop();
+        setState( "idle" );
+        return;
+      }
       if ( !reader_->has_next() ) {
         // End of bag
         if ( looping_ ) {
@@ -402,7 +383,6 @@ void BagPlayerEngine::onPlaybackTick()
         }
 
         playbackTimer_.stop();
-        clockTimer_.stop();
         setState( "finished" );
         emit playbackFinished();
         return;
@@ -448,6 +428,10 @@ void BagPlayerEngine::onPlaybackTick()
       currentBagTimeNs_ = msg->recv_timestamp;
     }
 
+    // Publish clock before each message so sim-time nodes receive it first
+    if ( clockEnabled_ )
+      publishClock( currentBagTimeNs_ );
+
     // Publish the message (skip disabled topics)
     if ( disabledTopics_.count( msg->topic_name ) == 0 ) {
       auto it = publishers_.find( msg->topic_name );
@@ -463,15 +447,6 @@ void BagPlayerEngine::onPlaybackTick()
 
     published++;
     emit progressChanged();
-  }
-}
-
-void BagPlayerEngine::onClockTick()
-{
-  if ( stopping_ || !clockPublisher_ )
-    return;
-  if ( currentBagTimeNs_ > 0 ) {
-    publishClock( currentBagTimeNs_ );
   }
 }
 
@@ -602,12 +577,16 @@ void BagPlayerEngine::reopenAndSeek( rcutils_time_point_value_t target_ns )
       reader_->close();
     }
     reader_ = std::make_unique<rosbag2_cpp::Reader>();
-    reader_->open( path );
+    rosbag2_storage::StorageOptions storage_options;
+    storage_options.uri = path;
+    storage_options.storage_id = storageId_;
+    reader_->open( storage_options );
     if ( !activeFilter_.topics.empty() ) {
       reader_->set_filter( activeFilter_ );
     }
     reader_->seek( target_ns );
   } catch ( const std::exception &e ) {
+    reader_.reset();
     setError( QString( "Failed to reopen bag: %1" ).arg( e.what() ) );
   }
 }

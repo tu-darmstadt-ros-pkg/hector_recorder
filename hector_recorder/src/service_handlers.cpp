@@ -176,7 +176,9 @@ void handleApplyConfig( std::unique_ptr<RecorderImpl> &recorder, CustomOptions &
 
     custom_options = new_custom;
     record_options = new_record;
-    raw_output_uri = new_storage.uri;
+    if ( !new_storage.uri.empty() )
+      raw_output_uri = new_storage.uri;
+    new_storage.uri = storage_options.uri;  // preserve active bag path
     storage_options = new_storage;
 
     if ( restart && was_recording ) {
@@ -336,8 +338,10 @@ static uint64_t directorySize( const fs::path &dir )
   return total;
 }
 
-/// Read a BagInfo from a bag directory using its metadata.yaml
-static bool readBagInfo( const fs::path &bag_dir, hector_recorder_msgs::msg::BagInfo &info )
+/// Read a BagInfo from a bag directory using its metadata.yaml.
+/// Optionally returns the raw metadata object for callers that need it.
+static bool readBagInfo( const fs::path &bag_dir, hector_recorder_msgs::msg::BagInfo &info,
+                         rosbag2_storage::BagMetadata *out_metadata = nullptr )
 {
   rosbag2_storage::MetadataIo metadata_io;
   if ( !metadata_io.metadata_file_exists( bag_dir.string() ) ) {
@@ -371,6 +375,9 @@ static bool readBagInfo( const fs::path &bag_dir, hector_recorder_msgs::msg::Bag
     if ( it != metadata.custom_data.end() ) {
       info.recorded_by = it->second;
     }
+
+    if ( out_metadata )
+      *out_metadata = std::move( metadata );
 
     return true;
   } catch ( const std::exception & ) {
@@ -424,17 +431,15 @@ void handleGetBagDetails( const std::string &bag_path,
                           std::vector<hector_recorder_msgs::msg::BagTopicInfo> &out_topics,
                           bool &out_success, std::string &out_message )
 {
-  if ( !readBagInfo( bag_path, out_info ) ) {
+  rosbag2_storage::BagMetadata metadata;
+  if ( !readBagInfo( bag_path, out_info, &metadata ) ) {
     out_success = false;
     out_message = "Failed to read bag metadata from: " + bag_path;
     return;
   }
 
-  // Read per-topic details
+  // Populate per-topic details from already-read metadata
   try {
-    rosbag2_storage::MetadataIo metadata_io;
-    auto metadata = metadata_io.read_metadata( bag_path );
-
     for ( const auto &topic_info : metadata.topics_with_message_count ) {
       hector_recorder_msgs::msg::BagTopicInfo ti;
       ti.name = topic_info.topic_metadata.name;

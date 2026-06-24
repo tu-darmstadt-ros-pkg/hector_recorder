@@ -222,6 +222,8 @@ Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
             recorderInterface: scanner
+            showPathBar: false
+            currentPath: context.bag_path ?? "~/bags/"
 
             onStatusMessage: function(msg, isError) {
                 statusLabel.text = (isError ? "\u2717 " : "\u2713 ") + msg;
@@ -267,6 +269,7 @@ Rectangle {
 
     function _applyScan() {
         context.bag_path = pathField.text;
+        bagBrowser.currentPath = pathField.text;
         bagBrowser.refresh();
     }
 

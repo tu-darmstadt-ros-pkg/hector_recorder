@@ -28,7 +28,6 @@ Item {
             mockEngine.rate = 1.0;
             mockEngine.looping = false;
             mockEngine.clockEnabled = false;
-            mockEngine.clockFrequency = 100;
             mockEngine.duration = 0;
             mockEngine.currentTime = 0;
             mockEngine.progress = 0;
@@ -153,8 +152,6 @@ Item {
             mockEngine.clockEnabled = true;
             compare(mockEngine.clockEnabled, true, "Clock should be on");
 
-            mockEngine.clockFrequency = 200;
-            compare(mockEngine.clockFrequency, 200, "Clock frequency should be 200 Hz");
         }
 
         // ---- Test 10: Topic filter ----

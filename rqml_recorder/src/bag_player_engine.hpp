@@ -39,8 +39,6 @@ class BagPlayerEngine : public QObject
   Q_PROPERTY( double currentTime READ currentTime NOTIFY progressChanged )
   Q_PROPERTY( double progress READ progress NOTIFY progressChanged )
   Q_PROPERTY( bool clockEnabled READ clockEnabled WRITE setClockEnabled NOTIFY clockEnabledChanged )
-  Q_PROPERTY( double clockFrequency READ clockFrequency WRITE setClockFrequency NOTIFY
-                  clockFrequencyChanged )
   Q_PROPERTY( int topicCount READ topicCount NOTIFY metadataChanged )
   Q_PROPERTY( int messageCount READ messageCount NOTIFY metadataChanged )
   Q_PROPERTY( QStringList topicList READ topicList NOTIFY metadataChanged )
@@ -60,7 +58,6 @@ public:
   double currentTime() const;
   double progress() const;
   bool clockEnabled() const;
-  double clockFrequency() const;
   int topicCount() const;
   int messageCount() const;
   QStringList topicList() const;
@@ -70,7 +67,6 @@ public:
   void setRate( double rate );
   void setLooping( bool looping );
   void setClockEnabled( bool enabled );
-  void setClockFrequency( double hz );
 
   /// Load a bag and read its metadata. Does not start playback.
   Q_INVOKABLE void load( const QString &bagPath );
@@ -104,7 +100,6 @@ signals:
   void metadataChanged();
   void progressChanged();
   void clockEnabledChanged();
-  void clockFrequencyChanged();
   void errorMessageChanged();
   void playbackFinished();
 
@@ -112,7 +107,6 @@ private:
   void setState( const QString &s );
   void setError( const QString &msg );
   void onPlaybackTick();
-  void onClockTick();
   bool publishNextMessage();
   void createPublishers( const QStringList &topicFilter );
   void destroyPublishers();
@@ -127,7 +121,6 @@ private:
   double rate_ = 1.0;
   bool looping_ = false;
   bool clockEnabled_ = false;
-  double clockFrequency_ = 100.0;
   QString errorMessage_;
 
   // Bag metadata
@@ -137,6 +130,7 @@ private:
   int topicCount_ = 0;
   int messageCount_ = 0;
   QStringList topicList_;
+  std::string storageId_;
 
   // Re-entrancy guard
   bool stopping_ = false;
@@ -160,7 +154,6 @@ private:
 
   // Timers
   QTimer playbackTimer_;
-  QTimer clockTimer_;
 };
 
 #endif // RQML_RECORDER_BAG_PLAYER_ENGINE_HPP

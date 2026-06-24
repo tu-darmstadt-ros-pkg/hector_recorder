@@ -143,14 +143,6 @@ Rectangle {
                 Layout.preferredWidth: 55
             }
 
-            // Rate display
-            Label {
-                objectName: "playbackPanelRateLabel"
-                text: engine ? engine.rate.toFixed(2) + "x" : "1.00x"
-                font.bold: true
-                Layout.preferredWidth: 50
-                horizontalAlignment: Text.AlignRight
-            }
         }
 
         // --------------------------------------------------------------------
@@ -214,17 +206,45 @@ Rectangle {
             // Separator
             Rectangle { width: 1; height: 24; color: palette.text; opacity: 0.3 }
 
-            // Speed presets
-            Repeater {
-                model: [0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0]
+            // Speed control
+            Label {
+                text: "Speed:"
+                opacity: 0.7
+            }
 
-                Button {
-                    objectName: "playbackPanelRateButton_" + modelData
-                    text: modelData + "x"
-                    flat: true
-                    implicitWidth: 44; implicitHeight: 28
-                    highlighted: engine && Math.abs(engine.rate - modelData) < 0.01
-                    onClicked: engine.rate = modelData
+            SpinBox {
+                id: rateSpinBox
+                objectName: "playbackPanelRateSpinBox"
+                from: 1; to: 2000        // 0.01x – 20.0x stored as integers × 100
+                stepSize: 25             // 0.25x per step
+                editable: true
+                implicitWidth: 130
+                enabled: engine && engine.state !== "idle"
+
+                property bool _syncing: false
+
+                value: 100  // default 1.00x
+
+                // Display as e.g. "1.00x"
+                textFromValue: function(v) { return (v / 100).toFixed(2) + "x" }
+                valueFromText: function(t) {
+                    let n = parseFloat(t.replace("x", ""));
+                    if (isNaN(n)) return rateSpinBox.value;
+                    return Math.round(Math.max(0.01, Math.min(20.0, n)) * 100);
+                }
+
+                onValueModified: {
+                    if (engine && !_syncing)
+                        engine.rate = value / 100.0;
+                }
+
+                Connections {
+                    target: engine
+                    function onRateChanged() {
+                        rateSpinBox._syncing = true;
+                        rateSpinBox.value = Math.round(engine.rate * 100);
+                        rateSpinBox._syncing = false;
+                    }
                 }
             }
 
@@ -268,22 +288,9 @@ Rectangle {
                 text: "Publish /clock"
                 checked: engine ? engine.clockEnabled : false
                 onToggled: engine.clockEnabled = checked
-            }
-
-            RowLayout {
-                spacing: 4
-                visible: clockCheckbox.checked
-
-                Label { text: "at"; opacity: 0.7 }
-                SpinBox {
-                    objectName: "playbackPanelClockFreqSpinBox"
-                    from: 1; to: 1000
-                    value: engine ? engine.clockFrequency : 100
-                    editable: true
-                    implicitWidth: 90
-                    onValueModified: engine.clockFrequency = value
-                }
-                Label { text: "Hz"; opacity: 0.7 }
+                ToolTip.text: "Publish bag timestamps on /clock for nodes using use_sim_time"
+                ToolTip.visible: hovered
+                ToolTip.delay: 500
             }
 
             Item { Layout.fillWidth: true }

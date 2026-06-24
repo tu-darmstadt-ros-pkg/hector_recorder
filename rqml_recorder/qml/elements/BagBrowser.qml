@@ -31,6 +31,9 @@ Rectangle {
     //! Current browse path (set from outside or via path bar)
     property string currentPath: ""
 
+    //! Set to false to hide the built-in path bar (e.g. when the parent provides its own)
+    property bool showPathBar: true
+
     //! Default "home" path for the recorder (from config)
     property string homePath: ""
 
@@ -106,6 +109,7 @@ Rectangle {
         RowLayout {
             Layout.fillWidth: true
             spacing: 4
+            visible: root.showPathBar
 
             Label {
                 text: "Path:"

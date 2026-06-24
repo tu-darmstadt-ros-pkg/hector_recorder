@@ -12,7 +12,6 @@ QtObject {
     property double currentTime: 0
     property double progress: 0
     property bool clockEnabled: false
-    property double clockFrequency: 100
     property int topicCount: 0
     property int messageCount: 0
     property var topicList: []
