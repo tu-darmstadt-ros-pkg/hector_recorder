@@ -43,6 +43,8 @@ struct CustomOptions {
   bool publish_status;
   ThrottleConfigMap topic_throttle;
   std::string recorded_by; // e.g. "alice@robot-pc", defaults to $USER@hostname
+  std::vector<std::string> preset_names; // cached at startup: sibling YAMLs next to config_path
+  std::string active_preset; // name of the last applied preset (empty = custom/unknown)
 };
 
 /// Check if a service is a ROS 2 infrastructure service (parameters, lifecycle, etc.)
@@ -77,6 +79,9 @@ inline bool isInfrastructureService( const std::string &service_name )
 
   return false;
 }
+
+/// Scan preset_dir and populate custom_options.preset_names. Call once at startup.
+void scanPresetDir( CustomOptions &custom_options );
 
 std::string getAbsolutePath( const std::string &path );
 static std::string make_timestamped_folder_name();
@@ -123,7 +128,9 @@ void handleStopRecording( std::unique_ptr<RecorderImpl> &recorder,
                           bool &out_success, std::string &out_message,
                           std::string &out_bag_path );
 
-/// Handle ApplyConfig service: parse YAML, optionally restart.
+/// Handle ApplyConfig service: parse YAML (or load named preset), optionally restart.
+/// If preset_name is non-empty, the YAML is read from custom_options.preset_dir/<preset_name>.yaml
+/// and config_yaml is ignored.
 void handleApplyConfig( std::unique_ptr<RecorderImpl> &recorder, CustomOptions &custom_options,
                         rosbag2_transport::RecordOptions &record_options,
                         rosbag2_storage::StorageOptions &storage_options,

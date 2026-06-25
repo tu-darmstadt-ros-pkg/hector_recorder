@@ -345,7 +345,6 @@ bool parseYamlNode( const YAML::Node &config, CustomOptions &custom_options,
     if ( config["publish_status_topic"] ) {
       custom_options.status_topic = config["publish_status_topic"].as<std::string>();
     }
-
     // Parse topic throttle configuration
     if ( config["topic_throttle"] ) {
       const YAML::Node &throttle_node = config["topic_throttle"];

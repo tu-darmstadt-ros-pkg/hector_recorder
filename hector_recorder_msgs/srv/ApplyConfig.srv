@@ -1,4 +1,5 @@
 string config_yaml              # Full YAML config string (same format as the config file)
+string preset_name              # Named onboard preset to apply (file stem in preset_dir); used instead of config_yaml when set
 bool restart                    # If true AND currently recording, stop and restart with new config
 ---
 bool success
