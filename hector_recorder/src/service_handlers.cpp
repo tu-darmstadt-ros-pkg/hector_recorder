@@ -252,36 +252,6 @@ void handleGetAvailableTopics( rclcpp::Node *node, std::vector<std::string> &out
   }
 }
 
-bool isInfrastructureService( const std::string &service_name )
-{
-  auto pos = service_name.rfind( '/' );
-  if ( pos == std::string::npos )
-    return false;
-  std::string_view leaf( service_name.data() + pos + 1, service_name.size() - pos - 1 );
-
-  // Parameter services
-  if ( leaf == "list_parameters" || leaf == "describe_parameters" ||
-       leaf == "get_parameters" || leaf == "set_parameters" ||
-       leaf == "get_parameter_types" || leaf == "set_parameters_atomically" )
-    return true;
-
-  // Lifecycle services
-  if ( leaf == "change_state" || leaf == "get_state" ||
-       leaf == "get_available_states" || leaf == "get_available_transitions" ||
-       leaf == "get_transition_graph" )
-    return true;
-
-  // Type description service
-  if ( leaf == "get_type_description" )
-    return true;
-
-  // Logger services
-  if ( leaf == "set_logger_levels" || leaf == "get_logger_levels" )
-    return true;
-
-  return false;
-}
-
 void handleGetAvailableServices( rclcpp::Node *node, std::vector<std::string> &out_services,
                                  std::vector<std::string> &out_types )
 {

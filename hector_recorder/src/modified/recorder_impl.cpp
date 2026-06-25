@@ -73,6 +73,7 @@ RecorderImpl::RecorderImpl(
       exclude_service_event_topic, node->get_name(),
       node->get_namespace(), false);
   }
+
 }
 
 RecorderImpl::~RecorderImpl()
@@ -234,6 +235,7 @@ void RecorderImpl::update_record_options( const rosbag2_transport::RecordOptions
   stop_discovery();
 
   record_options_ = new_options;
+
   topic_filter_ = std::make_unique<rosbag2_transport::TopicFilter>(
       record_options_, node->get_node_graph_interface());
 
