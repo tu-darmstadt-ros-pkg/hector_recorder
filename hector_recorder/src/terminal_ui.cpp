@@ -72,6 +72,7 @@ TerminalUI::TerminalUI( const CustomOptions &custom_options,
       publish_status_( custom_options.publish_status ),
       throttle_configs_( custom_options.topic_throttle )
 {
+  scanPresetDir( custom_options_ );
   storage_options_ = storage_options;
   record_options_ = record_options;
 
@@ -656,6 +657,10 @@ void TerminalUI::initializeServices()
       "~/delete_bag",
       std::bind( &TerminalUI::onDeleteBag, this, std::placeholders::_1,
                  std::placeholders::_2 ) );
+  get_preset_config_srv_ = this->create_service<hector_recorder_msgs::srv::GetPresetConfig>(
+      "~/get_preset_config",
+      std::bind( &TerminalUI::onGetPresetConfig, this, std::placeholders::_1,
+                 std::placeholders::_2 ) );
 }
 
 void TerminalUI::onStartRecording(
@@ -736,7 +741,8 @@ void TerminalUI::onApplyConfig(
 {
   std::lock_guard<std::mutex> lock( data_mutex_ );
   handleApplyConfig( recorder_, custom_options_, record_options_, storage_options_,
-                     raw_output_uri_, request->config_yaml, request->restart, this,
+                     raw_output_uri_, request->config_yaml, request->restart,
+                     request->preset_name, this,
                      response->success, response->message, response->active_config_yaml );
   // Update TUI-local copies that mirror custom_options_
   throttle_configs_ = custom_options_.topic_throttle;
@@ -815,6 +821,15 @@ void TerminalUI::onDeleteBag(
   if ( response->success ) {
     RCLCPP_INFO( this->get_logger(), "Deleted bag: %s", request->bag_path.c_str() );
   }
+}
+
+void TerminalUI::onGetPresetConfig(
+    const std::shared_ptr<hector_recorder_msgs::srv::GetPresetConfig::Request> request,
+    std::shared_ptr<hector_recorder_msgs::srv::GetPresetConfig::Response> response )
+{
+  std::lock_guard<std::mutex> lock( data_mutex_ );
+  handleGetPresetConfig( custom_options_, request->name, response->success, response->config_yaml,
+                         response->message );
 }
 
 void TerminalUI::publishRecorderStatus()

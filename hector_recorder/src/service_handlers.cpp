@@ -6,6 +6,7 @@
 #include "rosbag2_storage/metadata_io.hpp"
 #include <filesystem>
 #include <fstream>
+#include <sstream>
 
 namespace hector_recorder
 {
@@ -21,6 +22,10 @@ void fillRecorderStatus( hector_recorder_msgs::msg::RecorderStatus &status_msg,
 {
   status_msg.node_name = node->get_fully_qualified_name();
   status_msg.output_dir = storage_options.uri;
+
+  // Populate preset info from cache (scanned once at startup via scanPresetDir)
+  status_msg.preset_names = custom_options.preset_names;
+  status_msg.active_preset = custom_options.active_preset;
 
   // Determine state
   if ( recorder && recorder->is_recording() ) {
@@ -153,15 +158,38 @@ void handleApplyConfig( std::unique_ptr<RecorderImpl> &recorder, CustomOptions &
                         rosbag2_transport::RecordOptions &record_options,
                         rosbag2_storage::StorageOptions &storage_options,
                         std::string &raw_output_uri, const std::string &config_yaml,
-                        bool restart, rclcpp::Node *node, bool &out_success,
-                        std::string &out_message, std::string &out_active_config_yaml )
+                        bool restart, const std::string &preset_name, rclcpp::Node *node,
+                        bool &out_success, std::string &out_message,
+                        std::string &out_active_config_yaml )
 {
   try {
+    // Resolve YAML: if a preset name is given, load from the config file's directory.
+    std::string resolved_yaml = config_yaml;
+    if ( !preset_name.empty() ) {
+      if ( custom_options.config_path.empty() ) {
+        out_success = false;
+        out_message = "Cannot apply preset '" + preset_name + "': no config file loaded.";
+        return;
+      }
+      std::filesystem::path preset_path =
+          std::filesystem::path( custom_options.config_path ).parent_path() /
+          ( preset_name + ".yaml" );
+      std::ifstream ifs( preset_path );
+      if ( !ifs ) {
+        out_success = false;
+        out_message = "Preset file not found: " + preset_path.string();
+        return;
+      }
+      std::ostringstream ss;
+      ss << ifs.rdbuf();
+      resolved_yaml = ss.str();
+    }
+
     CustomOptions new_custom = custom_options;
     rosbag2_transport::RecordOptions new_record = record_options;
     rosbag2_storage::StorageOptions new_storage = storage_options;
 
-    if ( !parseYamlConfigFromString( config_yaml, new_custom, new_record, new_storage ) ) {
+    if ( !parseYamlConfigFromString( resolved_yaml, new_custom, new_record, new_storage ) ) {
       out_success = false;
       out_message = "Failed to parse YAML config.";
       return;
@@ -175,6 +203,8 @@ void handleApplyConfig( std::unique_ptr<RecorderImpl> &recorder, CustomOptions &
     }
 
     custom_options = new_custom;
+    // Track which preset is active (clear on raw YAML apply so status stays accurate)
+    custom_options.active_preset = preset_name;
     record_options = new_record;
     if ( !new_storage.uri.empty() )
       raw_output_uri = new_storage.uri;
@@ -207,6 +237,30 @@ void handleApplyConfig( std::unique_ptr<RecorderImpl> &recorder, CustomOptions &
     out_success = false;
     out_message = std::string( "Failed to apply config: " ) + e.what();
   }
+}
+
+void handleGetPresetConfig( const CustomOptions &custom_options, const std::string &name,
+                            bool &out_success, std::string &out_config_yaml,
+                            std::string &out_message )
+{
+  if ( custom_options.config_path.empty() ) {
+    out_success = false;
+    out_message = "No config file loaded — cannot resolve preset directory.";
+    return;
+  }
+  std::filesystem::path preset_path =
+      std::filesystem::path( custom_options.config_path ).parent_path() / ( name + ".yaml" );
+  std::ifstream ifs( preset_path );
+  if ( !ifs ) {
+    out_success = false;
+    out_message = "Preset file not found: " + preset_path.string();
+    return;
+  }
+  std::ostringstream ss;
+  ss << ifs.rdbuf();
+  out_config_yaml = ss.str();
+  out_success = true;
+  out_message = "OK";
 }
 
 void handleSaveConfig( const std::string &config_yaml, const std::string &file_path,
@@ -250,36 +304,6 @@ void handleGetAvailableTopics( rclcpp::Node *node, std::vector<std::string> &out
     }
     out_types.push_back( type_str );
   }
-}
-
-bool isInfrastructureService( const std::string &service_name )
-{
-  auto pos = service_name.rfind( '/' );
-  if ( pos == std::string::npos )
-    return false;
-  std::string_view leaf( service_name.data() + pos + 1, service_name.size() - pos - 1 );
-
-  // Parameter services
-  if ( leaf == "list_parameters" || leaf == "describe_parameters" ||
-       leaf == "get_parameters" || leaf == "set_parameters" ||
-       leaf == "get_parameter_types" || leaf == "set_parameters_atomically" )
-    return true;
-
-  // Lifecycle services
-  if ( leaf == "change_state" || leaf == "get_state" ||
-       leaf == "get_available_states" || leaf == "get_available_transitions" ||
-       leaf == "get_transition_graph" )
-    return true;
-
-  // Type description service
-  if ( leaf == "get_type_description" )
-    return true;
-
-  // Logger services
-  if ( leaf == "set_logger_levels" || leaf == "get_logger_levels" )
-    return true;
-
-  return false;
 }
 
 void handleGetAvailableServices( rclcpp::Node *node, std::vector<std::string> &out_services,

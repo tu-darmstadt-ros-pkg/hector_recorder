@@ -247,6 +247,32 @@ static std::string expandUserAndEnv( std::string s )
   return s;
 }
 
+void scanPresetDir( CustomOptions &custom_options )
+{
+  custom_options.preset_names.clear();
+  if ( custom_options.config_path.empty() )
+    return;
+  fs::path config = fs::path( custom_options.config_path );
+  fs::path dir = config.parent_path();
+  std::error_code ec;
+  for ( const auto &entry : std::filesystem::directory_iterator( dir, ec ) ) {
+    if ( entry.path().extension() == ".yaml" )
+      custom_options.preset_names.push_back( entry.path().stem().string() );
+  }
+  std::sort( custom_options.preset_names.begin(), custom_options.preset_names.end() );
+
+  // If the loaded config file is itself one of the presets, mark it as active
+  if ( custom_options.preset_names.size() > 1 && custom_options.active_preset.empty() ) {
+    std::string own_stem = config.stem().string();
+    for ( const auto &name : custom_options.preset_names ) {
+      if ( name == own_stem ) {
+        custom_options.active_preset = own_stem;
+        break;
+      }
+    }
+  }
+}
+
 std::string resolveOutputUriToAbsolute( const std::string &uri )
 {
   std::string expanded = expandUserAndEnv( uri );

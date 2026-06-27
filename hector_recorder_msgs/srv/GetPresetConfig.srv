@@ -1,0 +1,7 @@
+# Fetch the YAML content of a named onboard preset (a *.yaml file in the
+# recorder's preset directory). Used by UIs to switch presets via ApplyConfig.
+string name                     # Preset name (file stem, without .yaml extension)
+---
+bool success
+string config_yaml              # Raw YAML content of the preset file
+string message

@@ -13,6 +13,8 @@ RecorderNode::RecorderNode( const CustomOptions &custom_options,
       storage_options_( storage_options ), record_options_( record_options ),
       raw_output_uri_( storage_options.uri )
 {
+  scanPresetDir( custom_options_ );
+
   // Always publish status
   status_pub_ = this->create_publisher<hector_recorder_msgs::msg::RecorderStatus>(
       "~/recorder_status", 10 );
@@ -74,6 +76,10 @@ RecorderNode::RecorderNode( const CustomOptions &custom_options,
   delete_bag_srv_ = this->create_service<hector_recorder_msgs::srv::DeleteBag>(
       "~/delete_bag",
       std::bind( &RecorderNode::onDeleteBag, this, std::placeholders::_1,
+                 std::placeholders::_2 ) );
+  get_preset_config_srv_ = this->create_service<hector_recorder_msgs::srv::GetPresetConfig>(
+      "~/get_preset_config",
+      std::bind( &RecorderNode::onGetPresetConfig, this, std::placeholders::_1,
                  std::placeholders::_2 ) );
 
   RCLCPP_INFO( this->get_logger(), "Headless recorder node ready. Waiting for commands..." );
@@ -190,7 +196,8 @@ void RecorderNode::onApplyConfig(
 {
   std::lock_guard<std::mutex> lock( data_mutex_ );
   handleApplyConfig( recorder_, custom_options_, record_options_, storage_options_,
-                     raw_output_uri_, request->config_yaml, request->restart, this,
+                     raw_output_uri_, request->config_yaml, request->restart,
+                     request->preset_name, this,
                      response->success, response->message, response->active_config_yaml );
 }
 
@@ -265,4 +272,13 @@ void RecorderNode::onDeleteBag(
   if ( response->success ) {
     RCLCPP_INFO( this->get_logger(), "Deleted bag: %s", request->bag_path.c_str() );
   }
+}
+
+void RecorderNode::onGetPresetConfig(
+    const std::shared_ptr<hector_recorder_msgs::srv::GetPresetConfig::Request> request,
+    std::shared_ptr<hector_recorder_msgs::srv::GetPresetConfig::Response> response )
+{
+  std::lock_guard<std::mutex> lock( data_mutex_ );
+  handleGetPresetConfig( custom_options_, request->name, response->success, response->config_yaml,
+                         response->message );
 }

@@ -283,6 +283,7 @@ void ArgParser::parseCommandLineArguments( int argc, char **argv, CustomOptions 
                    "The topic to publish the recorder status on. Default: %(default)s." )
       ->default_val( "recorder_status" );
 
+
   auto config_opt =
       parser
           .add_option( "-c,--c,--config", custom_options.config_path,
