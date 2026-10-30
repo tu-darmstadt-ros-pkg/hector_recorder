@@ -30,7 +30,11 @@ qt_add_qml_module(rqml_recorder_plugin
 
 target_include_directories(rqml_recorder_plugin PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(rqml_recorder_plugin PRIVATE Qt6::Core Qt6::Qml Qt6::Network)
-ament_target_dependencies(rqml_recorder_plugin PUBLIC rclcpp rosbag2_cpp rosbag2_storage rosgraph_msgs)
+target_link_libraries(rqml_recorder_plugin PUBLIC
+                      rclcpp::rclcpp
+                      rosbag2_cpp::rosbag2_cpp
+                      rosbag2_storage::rosbag2_storage
+                      ${rosgraph_msgs_TARGETS})
 
 # Install the QML module so rqml can find it at runtime
 install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/RQml"

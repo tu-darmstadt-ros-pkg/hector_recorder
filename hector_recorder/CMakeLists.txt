@@ -34,25 +34,20 @@ target_include_directories(${LIBRARY_NAME} PUBLIC
 include_directories(include include/modified)
 
 # Link library
-ament_target_dependencies(${LIBRARY_NAME} PUBLIC
-        rclcpp
-        rosbag2_cpp
-        rosbag2_transport
-        rosbag2_storage
-        rosbag2_interfaces
-        hector_recorder_msgs
-        )        
+target_link_libraries(${LIBRARY_NAME} PUBLIC
+                      rclcpp::rclcpp
+                      rosbag2_cpp::rosbag2_cpp
+                      rosbag2_transport::rosbag2_transport
+                      rosbag2_storage::rosbag2_storage
+                      ${rosbag2_interfaces_TARGETS}
+                      ${hector_recorder_msgs_TARGETS})
 
 add_executable(record 
         src/main.cpp
         src/terminal_ui.cpp
 )
 
-ament_target_dependencies(record
-  rclcpp
-  hector_recorder_msgs
-  fmt
-)
+target_link_libraries(record rclcpp::rclcpp ${hector_recorder_msgs_TARGETS} fmt::fmt)
 
 target_link_libraries(record
   ${LIBRARY_NAME}
@@ -67,11 +62,10 @@ add_executable(record_headless
         src/main_headless.cpp
 )
 
-ament_target_dependencies(record_headless
-  rclcpp
-  hector_recorder_msgs
-  fmt
-)
+target_link_libraries(record_headless
+                      rclcpp::rclcpp
+                      ${hector_recorder_msgs_TARGETS}
+                      fmt::fmt)
 
 target_link_libraries(record_headless
   ${LIBRARY_NAME}
