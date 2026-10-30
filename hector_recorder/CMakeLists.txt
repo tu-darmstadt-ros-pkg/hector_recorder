@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.16)
 project(hector_recorder)
 
 # Find dependencies
@@ -40,7 +40,8 @@ target_link_libraries(${LIBRARY_NAME} PUBLIC
                       rosbag2_transport::rosbag2_transport
                       rosbag2_storage::rosbag2_storage
                       ${rosbag2_interfaces_TARGETS}
-                      ${hector_recorder_msgs_TARGETS})
+                      ${hector_recorder_msgs_TARGETS}
+                      fmt::fmt)
 
 add_executable(record 
         src/main.cpp
@@ -97,7 +98,8 @@ ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 # Export information to downstream packages
 ament_export_dependencies(
         rclcpp
-        rosbag2_cpp)
+        rosbag2_cpp
+        fmt)
 
 
 # Install environment hooks

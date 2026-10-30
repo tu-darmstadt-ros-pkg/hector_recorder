@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.16)
 project(rqml_recorder)
 
 find_package(ament_cmake REQUIRED)

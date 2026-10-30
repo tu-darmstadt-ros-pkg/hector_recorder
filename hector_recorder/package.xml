@@ -17,6 +17,7 @@
   <depend>hector_recorder_msgs</depend>
   <depend>libncurses-dev</depend>
   <depend>yaml-cpp</depend>
+  <depend>fmt</depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
