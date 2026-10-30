@@ -10,12 +10,12 @@
 #include "hector_recorder_msgs/msg/recorder_status.hpp"
 
 #include <chrono>
+#include <climits>
 #include <cstdlib>
 #include <ctime>
 #include <filesystem>
 #include <fmt/chrono.h>
 #include <fmt/core.h>
-#include <climits>
 #include <memory>
 #include <rclcpp/node.hpp>
 #include <rclcpp/qos.hpp>
@@ -42,9 +42,9 @@ struct CustomOptions {
   std::string status_topic = "recorder_status";
   bool publish_status;
   ThrottleConfigMap topic_throttle;
-  std::string recorded_by; // e.g. "alice@robot-pc", defaults to $USER@hostname
+  std::string recorded_by;               // e.g. "alice@robot-pc", defaults to $USER@hostname
   std::vector<std::string> preset_names; // cached at startup: sibling YAMLs next to config_path
-  std::string active_preset; // name of the last applied preset (empty = custom/unknown)
+  std::string active_preset;             // name of the last applied preset (empty = custom/unknown)
 };
 
 /// Check if a service is a ROS 2 infrastructure service (parameters, lifecycle, etc.)
@@ -58,15 +58,14 @@ inline bool isInfrastructureService( const std::string &service_name )
   std::string_view leaf( service_name.data() + pos + 1, service_name.size() - pos - 1 );
 
   // Parameter services
-  if ( leaf == "list_parameters" || leaf == "describe_parameters" ||
-       leaf == "get_parameters" || leaf == "set_parameters" ||
-       leaf == "get_parameter_types" || leaf == "set_parameters_atomically" )
+  if ( leaf == "list_parameters" || leaf == "describe_parameters" || leaf == "get_parameters" ||
+       leaf == "set_parameters" || leaf == "get_parameter_types" ||
+       leaf == "set_parameters_atomically" )
     return true;
 
   // Lifecycle services
-  if ( leaf == "change_state" || leaf == "get_state" ||
-       leaf == "get_available_states" || leaf == "get_available_transitions" ||
-       leaf == "get_transition_graph" )
+  if ( leaf == "change_state" || leaf == "get_state" || leaf == "get_available_states" ||
+       leaf == "get_available_transitions" || leaf == "get_transition_graph" )
     return true;
 
   // Type description service
@@ -108,25 +107,21 @@ std::string resolveOutputUriToAbsolute( const std::string &uri );
 /// (config, hostname, recorded_by) is served via GetConfig/GetRecorderInfo.
 void fillRecorderStatus( hector_recorder_msgs::msg::RecorderStatus &status_msg,
                          RecorderImpl *recorder, const CustomOptions &custom_options,
-                         const rosbag2_storage::StorageOptions &storage_options,
-                         rclcpp::Node *node );
+                         const rosbag2_storage::StorageOptions &storage_options, rclcpp::Node *node );
 
 /// Handle StartRecording service: resolve output, create recorder, start.
 /// On success sets recorder and updates storage_options.uri.
 void handleStartRecording( std::unique_ptr<RecorderImpl> &recorder,
                            rosbag2_storage::StorageOptions &storage_options,
                            const rosbag2_transport::RecordOptions &record_options,
-                           const CustomOptions &custom_options,
-                           const std::string &raw_output_uri,
+                           const CustomOptions &custom_options, const std::string &raw_output_uri,
                            const std::string &request_output_dir, rclcpp::Node *node,
-                           bool &out_success, std::string &out_message,
-                           std::string &out_bag_path );
+                           bool &out_success, std::string &out_message, std::string &out_bag_path );
 
 /// Handle StopRecording service: stop and reset recorder.
 void handleStopRecording( std::unique_ptr<RecorderImpl> &recorder,
-                          const rosbag2_storage::StorageOptions &storage_options,
-                          bool &out_success, std::string &out_message,
-                          std::string &out_bag_path );
+                          const rosbag2_storage::StorageOptions &storage_options, bool &out_success,
+                          std::string &out_message, std::string &out_bag_path );
 
 /// Handle ApplyConfig service: parse YAML (or load named preset), optionally restart.
 /// If preset_name is non-empty, the YAML is read from custom_options.preset_dir/<preset_name>.yaml
@@ -134,10 +129,9 @@ void handleStopRecording( std::unique_ptr<RecorderImpl> &recorder,
 void handleApplyConfig( std::unique_ptr<RecorderImpl> &recorder, CustomOptions &custom_options,
                         rosbag2_transport::RecordOptions &record_options,
                         rosbag2_storage::StorageOptions &storage_options,
-                        std::string &raw_output_uri, const std::string &config_yaml,
-                        bool restart, const std::string &preset_name, rclcpp::Node *node,
-                        bool &out_success, std::string &out_message,
-                        std::string &out_active_config_yaml );
+                        std::string &raw_output_uri, const std::string &config_yaml, bool restart,
+                        const std::string &preset_name, rclcpp::Node *node, bool &out_success,
+                        std::string &out_message, std::string &out_active_config_yaml );
 
 /// Handle GetPresetConfig service: read a named preset file's YAML content.
 void handleGetPresetConfig( const CustomOptions &custom_options, const std::string &name,
@@ -156,7 +150,7 @@ void handleGetConfig( const CustomOptions &custom_options,
 
 /// Handle GetRecorderInfo service: return static recorder info.
 void handleGetRecorderInfo( const CustomOptions &custom_options, std::string &out_hostname,
-                             std::string &out_recorded_by, std::string &out_config_path );
+                            std::string &out_recorded_by, std::string &out_config_path );
 
 /// Handle GetAvailableTopics service: query node for all topics.
 void handleGetAvailableTopics( rclcpp::Node *node, std::vector<std::string> &out_topics,
@@ -164,23 +158,21 @@ void handleGetAvailableTopics( rclcpp::Node *node, std::vector<std::string> &out
 
 /// Handle GetAvailableServices service: query node for all services (excluding infrastructure).
 void handleGetAvailableServices( rclcpp::Node *node, std::vector<std::string> &out_services,
-                                  std::vector<std::string> &out_types );
+                                 std::vector<std::string> &out_types );
 
 /// Handle ListBags service: scan directory for rosbag2 bags.
-void handleListBags( const std::string &path,
-                     const rosbag2_storage::StorageOptions &storage_options,
-                     std::vector<hector_recorder_msgs::msg::BagInfo> &out_bags,
-                     bool &out_success, std::string &out_message );
+void handleListBags( const std::string &path, const rosbag2_storage::StorageOptions &storage_options,
+                     std::vector<hector_recorder_msgs::msg::BagInfo> &out_bags, bool &out_success,
+                     std::string &out_message );
 
 /// Handle GetBagDetails service: read per-topic info from a bag.
-void handleGetBagDetails( const std::string &bag_path,
-                          hector_recorder_msgs::msg::BagInfo &out_info,
+void handleGetBagDetails( const std::string &bag_path, hector_recorder_msgs::msg::BagInfo &out_info,
                           std::vector<hector_recorder_msgs::msg::BagTopicInfo> &out_topics,
                           bool &out_success, std::string &out_message );
 
 /// Handle DeleteBag service: delete a bag directory.
-void handleDeleteBag( const std::string &bag_path, bool confirm,
-                      bool &out_success, std::string &out_message );
+void handleDeleteBag( const std::string &bag_path, bool confirm, bool &out_success,
+                      std::string &out_message );
 
 /// Get the default recorded_by string ($USER@hostname).
 std::string getDefaultRecordedBy();

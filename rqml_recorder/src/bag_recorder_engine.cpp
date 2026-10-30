@@ -167,8 +167,7 @@ void BagRecorderEngine::startRecording( const QStringList &topics, const QString
   ensureNode();
 
   // Determine output directory
-  std::string dir = expandHome(
-      ( outputDir.isEmpty() ? outputDir_ : outputDir ).toStdString() );
+  std::string dir = expandHome( ( outputDir.isEmpty() ? outputDir_ : outputDir ).toStdString() );
   if ( dir.empty() ) {
     dir = expandHome( "~/bags" );
   }
@@ -186,8 +185,7 @@ void BagRecorderEngine::startRecording( const QStringList &topics, const QString
   }
 
   // Generate bag name
-  std::string bagName =
-      QDateTime::currentDateTime().toString( "yyyy-MM-dd_HH-mm-ss" ).toStdString();
+  std::string bagName = QDateTime::currentDateTime().toString( "yyyy-MM-dd_HH-mm-ss" ).toStdString();
   std::string bagPath = dir + bagName;
 
   try {
@@ -289,8 +287,7 @@ void BagRecorderEngine::startRecording( const QStringList &topics, const QString
     // Create subscription
     try {
       auto sub = node_->create_generic_subscription(
-          name, type, qos,
-          [this, name, type]( std::shared_ptr<const rclcpp::SerializedMessage> msg ) {
+          name, type, qos, [this, name, type]( std::shared_ptr<const rclcpp::SerializedMessage> msg ) {
             if ( paused_.load( std::memory_order_relaxed ) ||
                  stopping_.load( std::memory_order_relaxed ) )
               return;
@@ -494,7 +491,4 @@ void BagRecorderEngine::shutdownNode()
   ctx_.reset();
 }
 
-void BagRecorderEngine::destroySubscriptions()
-{
-  subscriptions_.clear();
-}
+void BagRecorderEngine::destroySubscriptions() { subscriptions_.clear(); }

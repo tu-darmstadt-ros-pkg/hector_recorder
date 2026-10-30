@@ -125,8 +125,8 @@ private:
   QString errorMessage_;
 
   // Recording state
-  std::atomic<bool> paused_{false};
-  std::atomic<bool> stopping_{false};
+  std::atomic<bool> paused_{ false };
+  std::atomic<bool> stopping_{ false };
   std::chrono::steady_clock::time_point recordingStart_;
 
   // Writer

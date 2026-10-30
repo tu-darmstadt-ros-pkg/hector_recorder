@@ -17,80 +17,68 @@ set(LIBRARY_NAME hector_recorder_lib)
 # set(EXECUTABLE_NAME server)
 
 # Add library
-add_library(${LIBRARY_NAME} SHARED
-        src/arg_parser.cpp
-        src/modified/recorder_impl.cpp
-        src/utils.cpp
-        src/config_yaml.cpp
-        src/service_handlers.cpp
-        src/recorder_node.cpp
-        )
+add_library(
+  ${LIBRARY_NAME}
+  SHARED
+  src/arg_parser.cpp
+  src/modified/recorder_impl.cpp
+  src/utils.cpp
+  src/config_yaml.cpp
+  src/service_handlers.cpp
+  src/recorder_node.cpp
+)
 
 # Include directories
-target_include_directories(${LIBRARY_NAME} PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include/${PROJECT_NAME}>)
+target_include_directories(
+  ${LIBRARY_NAME}
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include/${PROJECT_NAME}>
+)
 
 include_directories(include include/modified)
 
 # Link library
-target_link_libraries(${LIBRARY_NAME} PUBLIC
-                      rclcpp::rclcpp
-                      rosbag2_cpp::rosbag2_cpp
-                      rosbag2_transport::rosbag2_transport
-                      rosbag2_storage::rosbag2_storage
-                      ${rosbag2_interfaces_TARGETS}
-                      ${hector_recorder_msgs_TARGETS}
-                      fmt::fmt)
-
-add_executable(record 
-        src/main.cpp
-        src/terminal_ui.cpp
+target_link_libraries(
+  ${LIBRARY_NAME}
+  PUBLIC
+    rclcpp::rclcpp
+    rosbag2_cpp::rosbag2_cpp
+    rosbag2_transport::rosbag2_transport
+    rosbag2_storage::rosbag2_storage
+    ${rosbag2_interfaces_TARGETS}
+    ${hector_recorder_msgs_TARGETS}
+    fmt::fmt
+    yaml-cpp::yaml-cpp
 )
 
-target_link_libraries(record rclcpp::rclcpp ${hector_recorder_msgs_TARGETS} fmt::fmt)
+add_executable(record src/main.cpp src/terminal_ui.cpp)
 
-target_link_libraries(record
+target_link_libraries(
+  record
   ${LIBRARY_NAME}
-  ${rclcpp_LIBRARIES}
+  rclcpp::rclcpp
   fmt::fmt
   ${CURSES_LIBRARIES}
   yaml-cpp
 )
 
 # Headless recorder executable (no ncurses dependency)
-add_executable(record_headless
-        src/main_headless.cpp
-)
+add_executable(record_headless src/main_headless.cpp)
 
-target_link_libraries(record_headless
-                      rclcpp::rclcpp
-                      ${hector_recorder_msgs_TARGETS}
-                      fmt::fmt)
-
-target_link_libraries(record_headless
-  ${LIBRARY_NAME}
-  ${rclcpp_LIBRARIES}
-  fmt::fmt
-  yaml-cpp
-)
+target_link_libraries(record_headless ${LIBRARY_NAME} rclcpp::rclcpp fmt::fmt yaml-cpp)
 
 # Install
-install(
-        DIRECTORY include/
-        DESTINATION include/${PROJECT_NAME}
-)
+install(DIRECTORY include/ DESTINATION include/${PROJECT_NAME})
 
-install (DIRECTORY config
-        DESTINATION share/${PROJECT_NAME}/
-)
+install(DIRECTORY config DESTINATION share/${PROJECT_NAME}/)
 
 install(
-        TARGETS ${LIBRARY_NAME}
-        EXPORT export_${PROJECT_NAME}
-        LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib
-        RUNTIME DESTINATION bin
+  TARGETS ${LIBRARY_NAME}
+  EXPORT export_${PROJECT_NAME}
+  LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib
+  RUNTIME DESTINATION bin
 )
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
@@ -99,26 +87,19 @@ ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 ament_export_dependencies(
         rclcpp
         rosbag2_cpp
-        fmt)
-
+        fmt
+)
 
 # Install environment hooks
 ament_environment_hooks(env_hooks/50.scripts.bash.in)
 
 # Install directories
-install(DIRECTORY
-  scripts
-  env_hooks
-  DESTINATION share/${PROJECT_NAME}
-)
+install(DIRECTORY scripts env_hooks DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
   ament_add_gtest(test_utils test/test_utils.cpp)
-  target_link_libraries(test_utils
-    ${LIBRARY_NAME}
-    yaml-cpp
-  )
+  target_link_libraries(test_utils ${LIBRARY_NAME} yaml-cpp)
 
   # rtest-based integration tests for RecorderNode service layer
   find_package(ament_cmake_gmock QUIET)
@@ -138,22 +119,20 @@ if(BUILD_TESTING)
         fmt::fmt
     )
 
-    target_include_directories(${LIBRARY_NAME}_test_doubles
+    target_include_directories(
+      ${LIBRARY_NAME}_test_doubles
       PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     )
 
     ament_add_gmock(test_recorder_node test/test_recorder_node.cpp)
-    target_include_directories(test_recorder_node PRIVATE
-      ${CMAKE_CURRENT_SOURCE_DIR}/include
-      ${CMAKE_CURRENT_SOURCE_DIR}/test
+    target_include_directories(
+      test_recorder_node
+      PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/test
     )
-    target_link_libraries(test_recorder_node
-      ${PROJECT_NAME}::${LIBRARY_NAME}_test_doubles
-    )
+    target_link_libraries(test_recorder_node ${PROJECT_NAME}::${LIBRARY_NAME}_test_doubles)
   endif()
 endif()
 
 ament_package()
 
-install(TARGETS record record_headless
-        DESTINATION lib/${PROJECT_NAME})
+install(TARGETS record record_headless DESTINATION lib/${PROJECT_NAME})

@@ -116,12 +116,11 @@ class MockRos2 : public QObject
   Q_PROPERTY( QJSValue _mockTopics READ mockTopics WRITE setMockTopics )
   Q_PROPERTY( QJSValue _mockServices READ mockServices WRITE setMockServices )
   Q_PROPERTY( QJSValue _mockTypeMap READ mockTypeMap WRITE setMockTypeMap )
-  Q_PROPERTY(
-      QJSValue _mockServiceResponses READ mockServiceResponses WRITE setMockServiceResponses )
+  Q_PROPERTY( QJSValue _mockServiceResponses READ mockServiceResponses WRITE setMockServiceResponses )
   Q_PROPERTY( QJSValue publishedMessages READ publishedMessages WRITE setPublishedMessages )
 
 public:
-  explicit MockRos2( QObject *parent = nullptr ) : QObject( parent ) {}
+  explicit MockRos2( QObject *parent = nullptr ) : QObject( parent ) { }
 
   void setEngine( QQmlEngine *engine )
   {
@@ -282,8 +281,7 @@ private:
 
     int len = arr.property( "length" ).toInt();
     result.reserve( len );
-    for ( int i = 0; i < len; ++i )
-      result.append( arr.property( i ).toString() );
+    for ( int i = 0; i < len; ++i ) result.append( arr.property( i ).toString() );
     return result;
   }
 

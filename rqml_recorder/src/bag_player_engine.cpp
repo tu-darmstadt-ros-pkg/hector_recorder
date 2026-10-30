@@ -38,7 +38,6 @@ BagPlayerEngine::BagPlayerEngine( QObject *parent ) : QObject( parent )
   playbackTimer_.setTimerType( Qt::PreciseTimer );
   playbackTimer_.setInterval( 1 ); // 1ms tick
   connect( &playbackTimer_, &QTimer::timeout, this, &BagPlayerEngine::onPlaybackTick );
-
 }
 
 BagPlayerEngine::~BagPlayerEngine()
@@ -114,8 +113,8 @@ void BagPlayerEngine::setClockEnabled( bool enabled )
     return;
   clockEnabled_ = enabled;
   if ( enabled && node_ && !clockPublisher_ ) {
-    clockPublisher_ = node_->create_publisher<rosgraph_msgs::msg::Clock>(
-        "/clock", rclcpp::ClockQoS() );
+    clockPublisher_ =
+        node_->create_publisher<rosgraph_msgs::msg::Clock>( "/clock", rclcpp::ClockQoS() );
   }
   emit clockEnabledChanged();
 }
@@ -173,9 +172,8 @@ void BagPlayerEngine::load( const QString &bagPath )
     bagStartNs_ = std::chrono::duration_cast<std::chrono::nanoseconds>(
                       metadata.starting_time.time_since_epoch() )
                       .count();
-    bagEndNs_ = bagStartNs_ + std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                  metadata.duration )
-                                  .count();
+    bagEndNs_ = bagStartNs_ +
+                std::chrono::duration_cast<std::chrono::nanoseconds>( metadata.duration ).count();
     messageCount_ = static_cast<int>( metadata.message_count );
     storageId_ = metadata.storage_identifier;
 
@@ -218,9 +216,7 @@ void BagPlayerEngine::play( const QStringList &topicFilter )
     // Store and apply topic filter
     activeFilter_ = {};
     if ( !topicFilter.isEmpty() ) {
-      for ( const auto &t : topicFilter ) {
-        activeFilter_.topics.push_back( t.toStdString() );
-      }
+      for ( const auto &t : topicFilter ) { activeFilter_.topics.push_back( t.toStdString() ); }
       reader_->set_filter( activeFilter_ );
     } else {
       reader_->reset_filter();
@@ -242,8 +238,8 @@ void BagPlayerEngine::play( const QStringList &topicFilter )
 
   if ( clockEnabled_ && !clockPublisher_ ) {
     ensureNode();
-    clockPublisher_ = node_->create_publisher<rosgraph_msgs::msg::Clock>(
-        "/clock", rclcpp::ClockQoS() );
+    clockPublisher_ =
+        node_->create_publisher<rosgraph_msgs::msg::Clock>( "/clock", rclcpp::ClockQoS() );
   }
 
   setState( "playing" );
@@ -402,8 +398,7 @@ void BagPlayerEngine::onPlaybackTick()
     } else {
       // Check if this message is due
       auto now = std::chrono::steady_clock::now();
-      double bag_delta_s =
-          static_cast<double>( msg->recv_timestamp - lastMsgBagTimeNs_ ) * 1e-9;
+      double bag_delta_s = static_cast<double>( msg->recv_timestamp - lastMsgBagTimeNs_ ) * 1e-9;
 
       // Skip negative deltas (out-of-order timestamps)
       if ( bag_delta_s < 0.0 ) {
@@ -549,8 +544,8 @@ void BagPlayerEngine::createPublishers( const QStringList &topicFilter )
       publishers_[topic.name] = pub;
     } catch ( const std::exception &e ) {
       // Skip topics we can't create publishers for
-      qWarning( "BagPlayerEngine: Failed to create publisher for %s: %s",
-                topic.name.c_str(), e.what() );
+      qWarning( "BagPlayerEngine: Failed to create publisher for %s: %s", topic.name.c_str(),
+                e.what() );
     }
   }
 }

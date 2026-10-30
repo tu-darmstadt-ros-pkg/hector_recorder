@@ -15,12 +15,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Changelog Jonathan Lichtenfeld 
+// Changelog Jonathan Lichtenfeld
 // 12.6.2024:
 // - Extract RecorderImpl from rosbag2_transport/recorder.cpp to its own file
-// - Add get_topics_names_to_info() 
+// - Add get_topics_names_to_info()
 // - Add get_bagfile_duration()
-// 25.02.2026: 
+// 25.02.2026:
 // - Add topic throttle logic
 
 

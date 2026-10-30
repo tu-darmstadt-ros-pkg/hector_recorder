@@ -1,7 +1,7 @@
 #include "CLI11.hpp"
 #include "hector_recorder/arg_parser.hpp"
-#include "hector_recorder/recorder_node.hpp"
 #include "hector_recorder/config_yaml.h"
+#include "hector_recorder/recorder_node.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include <string>
 #include <vector>
@@ -36,9 +36,9 @@ int main( int argc, char **argv )
   }
 
   // Check if we have enough config to auto-start (topics specified)
-  if ( record_options.all_topics || record_options.all_services ||
-       !record_options.topics.empty() || !record_options.services.empty() ||
-       !record_options.topic_types.empty() || !record_options.regex.empty() ) {
+  if ( record_options.all_topics || record_options.all_services || !record_options.topics.empty() ||
+       !record_options.services.empty() || !record_options.topic_types.empty() ||
+       !record_options.regex.empty() ) {
     auto_start = true;
   }
 
@@ -50,8 +50,8 @@ int main( int argc, char **argv )
 
   rclcpp::init( argc, argv );
 
-  auto node = std::make_shared<RecorderNode>( custom_options, storage_options, record_options,
-                                              auto_start );
+  auto node =
+      std::make_shared<RecorderNode>( custom_options, storage_options, record_options, auto_start );
 
   rclcpp::spin( node );
   rclcpp::shutdown();

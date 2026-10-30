@@ -5,7 +5,7 @@
 #include <QRegularExpression>
 #include <cmath>
 
-BagTransfer::BagTransfer( QObject *parent ) : QObject( parent ) {}
+BagTransfer::BagTransfer( QObject *parent ) : QObject( parent ) { }
 
 BagTransfer::~BagTransfer()
 {
@@ -27,8 +27,7 @@ QString BagTransfer::destPath() const { return destPath_; }
 QString BagTransfer::failureCommand() const { return failureCommand_; }
 QString BagTransfer::failureOutput() const { return failureOutput_; }
 
-void BagTransfer::start( const QString &hostname, const QString &remotePath,
-                          const QString &localDir )
+void BagTransfer::start( const QString &hostname, const QString &remotePath, const QString &localDir )
 {
   if ( running_ )
     return;
@@ -129,8 +128,7 @@ static QString buildCommandString( const QString &program, const QStringList &ar
   QStringList parts;
   parts.reserve( args.size() + 1 );
   parts << shellQuote( program );
-  for ( const QString &a : args )
-    parts << shellQuote( a );
+  for ( const QString &a : args ) parts << shellQuote( a );
   return parts.join( ' ' );
 }
 
@@ -153,8 +151,7 @@ static QString formatEta( int seconds )
     return QString::number( seconds ) + "s";
   if ( seconds < 3600 )
     return QString::number( seconds / 60 ) + "m " + QString::number( seconds % 60 ) + "s";
-  return QString::number( seconds / 3600 ) + "h " + QString::number( ( seconds % 3600 ) / 60 ) +
-         "m";
+  return QString::number( seconds / 3600 ) + "h " + QString::number( ( seconds % 3600 ) / 60 ) + "m";
 }
 
 static double parseSpeed( const QString &speedStr )
@@ -206,9 +203,7 @@ void BagTransfer::onReadyReadStdout()
   static QRegularExpression splitRe( R"([\r\n]+)" );
   QStringList lines = text.split( splitRe, Qt::SkipEmptyParts );
 
-  for ( const QString &line : lines ) {
-    parseLine( line.trimmed() );
-  }
+  for ( const QString &line : lines ) { parseLine( line.trimmed() ); }
 }
 
 void BagTransfer::parseLine( const QString &line )
@@ -220,8 +215,7 @@ void BagTransfer::parseLine( const QString &line )
   // the process finishes (the progress channel is otherwise drained as we go).
   recentOutput_.append( line );
   constexpr int kMaxOutputLines = 20;
-  while ( recentOutput_.size() > kMaxOutputLines )
-    recentOutput_.removeFirst();
+  while ( recentOutput_.size() > kMaxOutputLines ) recentOutput_.removeFirst();
 
   // rsync --info=progress2 --no-inc-recursive output looks like:
   //   "  1,234,567  42%   12.34MB/s    0:01:23"
@@ -255,7 +249,7 @@ void BagTransfer::parseLine( const QString &line )
         // Subsequent updates: only adjust if the estimate is within 5% of current
         // (handles edge case where rsync discovers new files mid-transfer)
         double drift = std::abs( static_cast<double>( estimated - bytesTotal_ ) ) /
-                        static_cast<double>( bytesTotal_ );
+                       static_cast<double>( bytesTotal_ );
         if ( drift > 0.05 ) {
           bytesTotal_ = estimated;
         }

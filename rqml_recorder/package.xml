@@ -1,4 +1,4 @@
-<?xml version="1.0"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>rqml_recorder</name>
@@ -9,15 +9,15 @@
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <depend>rqml_core</depend>
+  <build_depend>qt6-base-dev</build_depend>
+  <build_depend>qt6-declarative-dev</build_depend>
+
   <depend>hector_recorder_msgs</depend>
   <depend>rclcpp</depend>
   <depend>rosbag2_cpp</depend>
   <depend>rosbag2_storage</depend>
   <depend>rosgraph_msgs</depend>
-
-  <build_depend>qt6-base-dev</build_depend>
-  <build_depend>qt6-declarative-dev</build_depend>
+  <depend>rqml_core</depend>
 
   <exec_depend>qml6-module-qtquick-controls</exec_depend>
   <exec_depend>qml6-module-qtquick-layouts</exec_depend>

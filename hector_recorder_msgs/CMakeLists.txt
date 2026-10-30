@@ -31,14 +31,12 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/GetBagDetails.srv"
   "srv/DeleteBag.srv"
   "srv/GetPresetConfig.srv"
-  DEPENDENCIES std_msgs builtin_interfaces)
+  DEPENDENCIES std_msgs builtin_interfaces
+)
 
 ament_export_dependencies(rosidl_default_runtime)
 
 # Ensure interfaces are installed
-install(
-  DIRECTORY msg srv
-  DESTINATION share/${PROJECT_NAME}
-)
+install(DIRECTORY msg srv DESTINATION share/${PROJECT_NAME})
 
 ament_package()

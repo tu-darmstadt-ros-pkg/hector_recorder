@@ -169,232 +169,230 @@ bool parseYamlNode( const YAML::Node &config, CustomOptions &custom_options,
   if ( config["node_name"] ) {
     custom_options.node_name = config["node_name"].as<std::string>();
   }
-    if ( config["output"] ) {
-      storage_options.uri = config["output"].as<std::string>();
+  if ( config["output"] ) {
+    storage_options.uri = config["output"].as<std::string>();
+  }
+  if ( config["storage_id"] ) {
+    storage_options.storage_id = config["storage_id"].as<std::string>();
+  }
+  // mutually exclusive
+  if ( config["max_bag_size"] && config["max_bag_size_gb"] ) {
+    throw std::runtime_error( "Conflicting configuration detected: Both 'max_bag_size' and "
+                              "'max_bag_size_gb' are defined. Please specify only one." );
+  } else if ( config["max_bag_size"] ) {
+    storage_options.max_bagfile_size = config["max_bag_size"].as<uint64_t>();
+  } else if ( config["max_bag_size_gb"] ) {
+    uint64_t max_bag_size_bytes =
+        static_cast<uint64_t>( config["max_bag_size_gb"].as<float>() * 1024 * 1024 * 1024 );
+    storage_options.max_bagfile_size = max_bag_size_bytes;
+  }
+  if ( config["max_bag_duration"] ) {
+    storage_options.max_bagfile_duration = config["max_bag_duration"].as<uint64_t>();
+  } else {
+    storage_options.max_bagfile_duration = 0;
+  }
+  if ( config["max_cache_size"] ) {
+    storage_options.max_cache_size = config["max_cache_size"].as<uint64_t>();
+  } else {
+    storage_options.max_cache_size = 0;
+  }
+  if ( config["storage_preset_profile"] ) {
+    storage_options.storage_preset_profile = config["storage_preset_profile"].as<std::string>();
+  }
+  if ( config["storage_config_uri"] ) {
+    storage_options.storage_config_uri = config["storage_config_uri"].as<std::string>();
+  }
+  if ( config["snapshot_mode"] ) {
+    storage_options.snapshot_mode = config["snapshot_mode"].as<bool>();
+  } else {
+    storage_options.snapshot_mode = false;
+  }
+  if ( config["start_time_ns"] ) {
+    storage_options.start_time_ns = config["start_time_ns"].as<int64_t>();
+  } else {
+    storage_options.start_time_ns = -1;
+  }
+  if ( config["end_time_ns"] ) {
+    storage_options.end_time_ns = config["end_time_ns"].as<int64_t>();
+  } else {
+    storage_options.end_time_ns = -1;
+  }
+  if ( config["custom_data"] ) {
+    storage_options.custom_data.clear();
+    for ( const auto &pair : config["custom_data"] ) {
+      if ( pair.size() != 2 ) {
+        std::cerr << "Error: Custom data must be a map of key-value pairs." << std::endl;
+        return false; // Invalid custom data format
+      }
+      storage_options.custom_data[pair[0].as<std::string>()] = pair[1].as<std::string>();
     }
-    if ( config["storage_id"] ) {
-      storage_options.storage_id = config["storage_id"].as<std::string>();
+  }
+
+  if ( config["all_topics"] ) {
+    record_options.all_topics = config["all_topics"].as<bool>();
+  } else {
+    record_options.all_topics = false;
+  }
+  if ( config["all_services"] ) {
+    record_options.all_services = config["all_services"].as<bool>();
+  } else {
+    record_options.all_services = false;
+  }
+  if ( config["is_discovery_disabled"] ) {
+    record_options.is_discovery_disabled = config["is_discovery_disabled"].as<bool>();
+  } else {
+    record_options.is_discovery_disabled = false;
+  }
+  if ( config["topics"] ) {
+    record_options.topics = config["topics"].as<std::vector<std::string>>();
+  }
+  if ( config["topic_types"] ) {
+    record_options.topic_types = config["topic_types"].as<std::vector<std::string>>();
+  }
+  if ( config["services"] ) {
+    record_options.services = config["services"].as<std::vector<std::string>>();
+  }
+  if ( config["exclude_topics"] ) {
+    record_options.exclude_topics = config["exclude_topics"].as<std::vector<std::string>>();
+  }
+  if ( config["exclude_topic_types"] ) {
+    record_options.exclude_topic_types = config["exclude_topic_types"].as<std::vector<std::string>>();
+  }
+  if ( config["exclude_service_events"] ) {
+    record_options.exclude_service_events =
+        config["exclude_service_events"].as<std::vector<std::string>>();
+  }
+  if ( config["rmw_serialization_format"] ) {
+    record_options.rmw_serialization_format = config["rmw_serialization_format"].as<std::string>();
+  } else {
+    record_options.rmw_serialization_format = rmw_get_serialization_format();
+  }
+  if ( config["topic_polling_interval"] ) {
+    record_options.topic_polling_interval =
+        std::chrono::milliseconds( config["topic_polling_interval"].as<int>() );
+  } else {
+    record_options.topic_polling_interval = std::chrono::milliseconds( 100 );
+  }
+  if ( config["regex"] ) {
+    record_options.regex = config["regex"].as<std::string>();
+  }
+  if ( config["exclude_regex"] ) {
+    record_options.exclude_regex = config["exclude_regex"].as<std::string>();
+  }
+  if ( config["node_prefix"] ) {
+    record_options.node_prefix = config["node_prefix"].as<std::string>();
+  }
+  if ( config["compression_mode"] ) {
+    record_options.compression_mode = config["compression_mode"].as<std::string>();
+  }
+  if ( config["compression_format"] ) {
+    record_options.compression_format = config["compression_format"].as<std::string>();
+  }
+  if ( config["compression_queue_size"] ) {
+    record_options.compression_queue_size = config["compression_queue_size"].as<uint64_t>();
+  } else {
+    record_options.compression_queue_size = 0;
+  }
+  if ( config["compression_threads"] ) {
+    record_options.compression_threads = config["compression_threads"].as<uint64_t>();
+  } else {
+    record_options.compression_threads = 0;
+  }
+  if ( config["compression_threads_priority"] ) {
+    record_options.compression_threads_priority =
+        config["compression_threads_priority"].as<int32_t>();
+  } else {
+    record_options.compression_threads_priority = 0;
+  }
+  if ( config["topic_qos_profile_overrides_path"] ) {
+    record_options.topic_qos_profile_overrides = hector_recorder::load_qos_overrides_from_file(
+        config["topic_qos_profile_overrides_path"].as<std::string>() );
+  }
+  if ( config["include_hidden_topics"] ) {
+    record_options.include_hidden_topics = config["include_hidden_topics"].as<bool>();
+  } else {
+    record_options.include_hidden_topics = false;
+  }
+  if ( config["include_unpublished_topics"] ) {
+    record_options.include_unpublished_topics = config["include_unpublished_topics"].as<bool>();
+  } else {
+    record_options.include_unpublished_topics = false;
+  }
+  if ( config["ignore_leaf_topics"] ) {
+    record_options.ignore_leaf_topics = config["ignore_leaf_topics"].as<bool>();
+  } else {
+    record_options.ignore_leaf_topics = false;
+  }
+  if ( config["start_paused"] ) {
+    record_options.start_paused = config["start_paused"].as<bool>();
+  } else {
+    record_options.start_paused = false;
+  }
+  if ( config["use_sim_time"] ) {
+    record_options.use_sim_time = config["use_sim_time"].as<bool>();
+  } else {
+    record_options.use_sim_time = false;
+  }
+  if ( config["disable_keyboard_controls"] ) {
+    record_options.disable_keyboard_controls = config["disable_keyboard_controls"].as<bool>();
+  } else {
+    record_options.disable_keyboard_controls = false;
+  }
+  if ( config["publish_status"] ) {
+    custom_options.publish_status = config["publish_status"].as<bool>();
+  }
+  if ( config["publish_status_topic"] ) {
+    custom_options.status_topic = config["publish_status_topic"].as<std::string>();
+  }
+  // Parse topic throttle configuration
+  if ( config["topic_throttle"] ) {
+    const YAML::Node &throttle_node = config["topic_throttle"];
+    if ( !throttle_node.IsMap() ) {
+      throw std::runtime_error( "'topic_throttle' must be a map: <topic> -> {type, ...}" );
     }
-    // mutually exclusive
-    if ( config["max_bag_size"] && config["max_bag_size_gb"] ) {
-      throw std::runtime_error( "Conflicting configuration detected: Both 'max_bag_size' and "
-                                "'max_bag_size_gb' are defined. Please specify only one." );
-    } else if ( config["max_bag_size"] ) {
-      storage_options.max_bagfile_size = config["max_bag_size"].as<uint64_t>();
-    } else if ( config["max_bag_size_gb"] ) {
-      uint64_t max_bag_size_bytes =
-          static_cast<uint64_t>( config["max_bag_size_gb"].as<float>() * 1024 * 1024 * 1024 );
-      storage_options.max_bagfile_size = max_bag_size_bytes;
-    }
-    if ( config["max_bag_duration"] ) {
-      storage_options.max_bagfile_duration = config["max_bag_duration"].as<uint64_t>();
-    } else {
-      storage_options.max_bagfile_duration = 0;
-    }
-    if ( config["max_cache_size"] ) {
-      storage_options.max_cache_size = config["max_cache_size"].as<uint64_t>();
-    } else {
-      storage_options.max_cache_size = 0;
-    }
-    if ( config["storage_preset_profile"] ) {
-      storage_options.storage_preset_profile = config["storage_preset_profile"].as<std::string>();
-    }
-    if ( config["storage_config_uri"] ) {
-      storage_options.storage_config_uri = config["storage_config_uri"].as<std::string>();
-    }
-    if ( config["snapshot_mode"] ) {
-      storage_options.snapshot_mode = config["snapshot_mode"].as<bool>();
-    } else {
-      storage_options.snapshot_mode = false;
-    }
-    if ( config["start_time_ns"] ) {
-      storage_options.start_time_ns = config["start_time_ns"].as<int64_t>();
-    } else {
-      storage_options.start_time_ns = -1;
-    }
-    if ( config["end_time_ns"] ) {
-      storage_options.end_time_ns = config["end_time_ns"].as<int64_t>();
-    } else {
-      storage_options.end_time_ns = -1;
-    }
-    if ( config["custom_data"] ) {
-      storage_options.custom_data.clear();
-      for ( const auto &pair : config["custom_data"] ) {
-        if ( pair.size() != 2 ) {
-          std::cerr << "Error: Custom data must be a map of key-value pairs." << std::endl;
-          return false; // Invalid custom data format
+    for ( const auto &entry : throttle_node ) {
+      const std::string topic = entry.first.as<std::string>();
+      const YAML::Node &cfg = entry.second;
+      ThrottleConfig tc;
+
+      std::string type_str = cfg["type"].as<std::string>( "messages" );
+      if ( type_str == "messages" ) {
+        tc.type = ThrottleConfig::MESSAGES;
+        if ( !cfg["msgs_per_sec"] ) {
+          throw std::runtime_error( "topic_throttle: '" + topic +
+                                    "' has type 'messages' but no 'msgs_per_sec'." );
         }
-        storage_options.custom_data[pair[0].as<std::string>()] = pair[1].as<std::string>();
-      }
-    }
-
-    if ( config["all_topics"] ) {
-      record_options.all_topics = config["all_topics"].as<bool>();
-    } else {
-      record_options.all_topics = false;
-    }
-    if ( config["all_services"] ) {
-      record_options.all_services = config["all_services"].as<bool>();
-    } else {
-      record_options.all_services = false;
-    }
-    if ( config["is_discovery_disabled"] ) {
-      record_options.is_discovery_disabled = config["is_discovery_disabled"].as<bool>();
-    } else {
-      record_options.is_discovery_disabled = false;
-    }
-    if ( config["topics"] ) {
-      record_options.topics = config["topics"].as<std::vector<std::string>>();
-    }
-    if ( config["topic_types"] ) {
-      record_options.topic_types = config["topic_types"].as<std::vector<std::string>>();
-    }
-    if ( config["services"] ) {
-      record_options.services = config["services"].as<std::vector<std::string>>();
-    }
-    if ( config["exclude_topics"] ) {
-      record_options.exclude_topics = config["exclude_topics"].as<std::vector<std::string>>();
-    }
-    if ( config["exclude_topic_types"] ) {
-      record_options.exclude_topic_types =
-          config["exclude_topic_types"].as<std::vector<std::string>>();
-    }
-    if ( config["exclude_service_events"] ) {
-      record_options.exclude_service_events =
-          config["exclude_service_events"].as<std::vector<std::string>>();
-    }
-    if ( config["rmw_serialization_format"] ) {
-      record_options.rmw_serialization_format = config["rmw_serialization_format"].as<std::string>();
-    } else {
-      record_options.rmw_serialization_format = rmw_get_serialization_format();
-    }
-    if ( config["topic_polling_interval"] ) {
-      record_options.topic_polling_interval =
-          std::chrono::milliseconds( config["topic_polling_interval"].as<int>() );
-    } else {
-      record_options.topic_polling_interval = std::chrono::milliseconds( 100 );
-    }
-    if ( config["regex"] ) {
-      record_options.regex = config["regex"].as<std::string>();
-    }
-    if ( config["exclude_regex"] ) {
-      record_options.exclude_regex = config["exclude_regex"].as<std::string>();
-    }
-    if ( config["node_prefix"] ) {
-      record_options.node_prefix = config["node_prefix"].as<std::string>();
-    }
-    if ( config["compression_mode"] ) {
-      record_options.compression_mode = config["compression_mode"].as<std::string>();
-    }
-    if ( config["compression_format"] ) {
-      record_options.compression_format = config["compression_format"].as<std::string>();
-    }
-    if ( config["compression_queue_size"] ) {
-      record_options.compression_queue_size = config["compression_queue_size"].as<uint64_t>();
-    } else {
-      record_options.compression_queue_size = 0;
-    }
-    if ( config["compression_threads"] ) {
-      record_options.compression_threads = config["compression_threads"].as<uint64_t>();
-    } else {
-      record_options.compression_threads = 0;
-    }
-    if ( config["compression_threads_priority"] ) {
-      record_options.compression_threads_priority =
-          config["compression_threads_priority"].as<int32_t>();
-    } else {
-      record_options.compression_threads_priority = 0;
-    }
-    if ( config["topic_qos_profile_overrides_path"] ) {
-      record_options.topic_qos_profile_overrides = hector_recorder::load_qos_overrides_from_file(
-          config["topic_qos_profile_overrides_path"].as<std::string>() );
-    }
-    if ( config["include_hidden_topics"] ) {
-      record_options.include_hidden_topics = config["include_hidden_topics"].as<bool>();
-    } else {
-      record_options.include_hidden_topics = false;
-    }
-    if ( config["include_unpublished_topics"] ) {
-      record_options.include_unpublished_topics = config["include_unpublished_topics"].as<bool>();
-    } else {
-      record_options.include_unpublished_topics = false;
-    }
-    if ( config["ignore_leaf_topics"] ) {
-      record_options.ignore_leaf_topics = config["ignore_leaf_topics"].as<bool>();
-    } else {
-      record_options.ignore_leaf_topics = false;
-    }
-    if ( config["start_paused"] ) {
-      record_options.start_paused = config["start_paused"].as<bool>();
-    } else {
-      record_options.start_paused = false;
-    }
-    if ( config["use_sim_time"] ) {
-      record_options.use_sim_time = config["use_sim_time"].as<bool>();
-    } else {
-      record_options.use_sim_time = false;
-    }
-    if ( config["disable_keyboard_controls"] ) {
-      record_options.disable_keyboard_controls = config["disable_keyboard_controls"].as<bool>();
-    } else {
-      record_options.disable_keyboard_controls = false;
-    }
-    if ( config["publish_status"] ) {
-      custom_options.publish_status = config["publish_status"].as<bool>();
-    }
-    if ( config["publish_status_topic"] ) {
-      custom_options.status_topic = config["publish_status_topic"].as<std::string>();
-    }
-    // Parse topic throttle configuration
-    if ( config["topic_throttle"] ) {
-      const YAML::Node &throttle_node = config["topic_throttle"];
-      if ( !throttle_node.IsMap() ) {
-        throw std::runtime_error( "'topic_throttle' must be a map: <topic> -> {type, ...}" );
-      }
-      for ( const auto &entry : throttle_node ) {
-        const std::string topic = entry.first.as<std::string>();
-        const YAML::Node &cfg = entry.second;
-        ThrottleConfig tc;
-
-        std::string type_str = cfg["type"].as<std::string>( "messages" );
-        if ( type_str == "messages" ) {
-          tc.type = ThrottleConfig::MESSAGES;
-          if ( !cfg["msgs_per_sec"] ) {
-            throw std::runtime_error( "topic_throttle: '" + topic +
-                                      "' has type 'messages' but no 'msgs_per_sec'." );
-          }
-          tc.msgs_per_sec = cfg["msgs_per_sec"].as<double>();
-          if ( tc.msgs_per_sec <= 0.0 ) {
-            throw std::runtime_error( "topic_throttle: '" + topic + "' msgs_per_sec must be > 0." );
-          }
-        } else if ( type_str == "bytes" ) {
-          tc.type = ThrottleConfig::BYTES;
-          if ( !cfg["bytes_per_sec"] ) {
-            throw std::runtime_error( "topic_throttle: '" + topic +
-                                      "' has type 'bytes' but no 'bytes_per_sec'." );
-          }
-          tc.bytes_per_sec = cfg["bytes_per_sec"].as<int64_t>();
-          if ( tc.bytes_per_sec <= 0 ) {
-            throw std::runtime_error( "topic_throttle: '" + topic + "' bytes_per_sec must be > 0." );
-          }
-          tc.window = cfg["window"].as<double>( 1.0 );
-          if ( tc.window <= 0.0 ) {
-            throw std::runtime_error( "topic_throttle: '" + topic + "' window must be > 0." );
-          }
-        } else {
-          throw std::runtime_error( "topic_throttle: '" + topic + "' has unknown type '" +
-                                    type_str + "'. Expected 'messages' or 'bytes'." );
+        tc.msgs_per_sec = cfg["msgs_per_sec"].as<double>();
+        if ( tc.msgs_per_sec <= 0.0 ) {
+          throw std::runtime_error( "topic_throttle: '" + topic + "' msgs_per_sec must be > 0." );
         }
-        custom_options.topic_throttle[topic] = tc;
+      } else if ( type_str == "bytes" ) {
+        tc.type = ThrottleConfig::BYTES;
+        if ( !cfg["bytes_per_sec"] ) {
+          throw std::runtime_error( "topic_throttle: '" + topic +
+                                    "' has type 'bytes' but no 'bytes_per_sec'." );
+        }
+        tc.bytes_per_sec = cfg["bytes_per_sec"].as<int64_t>();
+        if ( tc.bytes_per_sec <= 0 ) {
+          throw std::runtime_error( "topic_throttle: '" + topic + "' bytes_per_sec must be > 0." );
+        }
+        tc.window = cfg["window"].as<double>( 1.0 );
+        if ( tc.window <= 0.0 ) {
+          throw std::runtime_error( "topic_throttle: '" + topic + "' window must be > 0." );
+        }
+      } else {
+        throw std::runtime_error( "topic_throttle: '" + topic + "' has unknown type '" + type_str +
+                                  "'. Expected 'messages' or 'bytes'." );
       }
+      custom_options.topic_throttle[topic] = tc;
     }
+  }
 
-    if ( record_options.rmw_serialization_format.empty() ) {
-      record_options.rmw_serialization_format =
-          rmw_get_serialization_format();
-    }
+  if ( record_options.rmw_serialization_format.empty() ) {
+    record_options.rmw_serialization_format = rmw_get_serialization_format();
+  }
 
-    return true;
+  return true;
 }
 
 bool parseYamlConfig( CustomOptions &custom_options, rosbag2_transport::RecordOptions &record_options,

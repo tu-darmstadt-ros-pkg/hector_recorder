@@ -1,0 +1,15 @@
+name: CI
+
+on:
+  push:
+    branches:
+    - main
+  pull_request:
+
+jobs:
+  pre-commit:
+    uses: tu-darmstadt-ros-pkg/hector_ros2_ci/.github/workflows/pre-commit.yml@v1
+  build-and-test:
+    uses: tu-darmstadt-ros-pkg/hector_ros2_ci/.github/workflows/build-and-test.yml@v1
+    with:
+      rosdistro: '["jazzy", "lyrical"]'
