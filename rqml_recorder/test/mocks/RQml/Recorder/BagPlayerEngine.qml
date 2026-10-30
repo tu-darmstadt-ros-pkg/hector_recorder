@@ -3,33 +3,34 @@ import QtQuick
 QtObject {
     id: root
 
-    property string bagPath: ""
-    property string bagName: ""
-    property string state: "idle"
-    property double rate: 1.0
-    property bool looping: false
-    property double duration: 0
-    property double currentTime: 0
-    property double progress: 0
-    property bool clockEnabled: false
-    property int topicCount: 0
-    property int messageCount: 0
-    property var topicList: []
-    property string errorMessage: ""
-
-    signal metadataChanged()
-    signal playbackFinished()
+    property var _lastPlayTopics: []
+    property double _lastSeek: 0
 
     // Mock tracking
     property int _loadCount: 0
-    property int _playCount: 0
     property int _pauseCount: 0
+    property int _playCount: 0
     property int _resumeCount: 0
-    property int _stopCount: 0
     property int _seekCount: 0
-    property double _lastSeek: 0
-    property var _lastPlayTopics: []
+    property int _stepForwardCount: 0
+    property int _stopCount: 0
     property var _topicEnabled: ({})
+    property string bagName: ""
+    property string bagPath: ""
+    property bool clockEnabled: false
+    property double currentTime: 0
+    property double duration: 0
+    property string errorMessage: ""
+    property bool looping: false
+    property int messageCount: 0
+    property double progress: 0
+    property double rate: 1.0
+    property string state: "idle"
+    property int topicCount: 0
+    property var topicList: []
+
+    signal metadataChanged
+    signal playbackFinished
 
     function load(path) {
         _loadCount++;
@@ -37,38 +38,32 @@ QtObject {
         bagName = path.split("/").pop();
         state = "loaded";
     }
-
+    function pause() {
+        _pauseCount++;
+        state = "paused";
+    }
     function play(topicFilter) {
         _playCount++;
         _lastPlayTopics = topicFilter || [];
         state = "playing";
     }
-
-    function pause() {
-        _pauseCount++;
-        state = "paused";
-    }
-
     function resume() {
         _resumeCount++;
         state = "playing";
     }
-
-    function stop() {
-        _stopCount++;
-        state = "idle";
-    }
-
     function seek(seconds) {
         _seekCount++;
         _lastSeek = seconds;
     }
-
-    function stepForward() {
-        return true;
-    }
-
     function setTopicEnabled(topic, enabled) {
         _topicEnabled[topic] = enabled;
+    }
+    function stepForward() {
+        _stepForwardCount++;
+        return true;
+    }
+    function stop() {
+        _stopCount++;
+        state = "idle";
     }
 }

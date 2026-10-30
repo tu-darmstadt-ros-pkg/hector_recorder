@@ -105,7 +105,11 @@ if(BUILD_TESTING)
   find_package(ament_cmake_gmock QUIET)
   find_package(GTest CONFIG QUIET COMPONENTS GTest GMock)
   find_package(rtest QUIET)
-  if(ament_cmake_gmock_FOUND AND GTest_FOUND AND rtest_FOUND)
+  # GTestConfig.cmake (libgtest-dev) only loads the GMock targets if libgmock-dev is installed
+  if(NOT TARGET GTest::gmock)
+    message(WARNING "GTest::gmock not found (install libgmock-dev), skipping test_recorder_node")
+  endif()
+  if(ament_cmake_gmock_FOUND AND GTest_FOUND AND TARGET GTest::gmock AND rtest_FOUND)
     test_tools_add_doubles(
       ${LIBRARY_NAME}
       AMENT_DEPENDENCIES
