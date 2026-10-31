@@ -55,6 +55,11 @@ ament_environment_hooks(register_qml_module.dsv.in)
 if(BUILD_TESTING)
   find_package(Qt6 REQUIRED COMPONENTS QuickTest)
   find_package(qml6_ros2_plugin REQUIRED)
+  # The plugin QML imports RQml.Elements/RQml.Fonts from rqml_core. Pass its QML directory
+  # explicitly (as rqml's own tests do) instead of relying on the environment hooks of its
+  # install prefix being sourced, which CI does not do.
+  find_package(rqml_core REQUIRED)
+  get_filename_component(RQML_CORE_QML_DIR "${rqml_core_DIR}/.." ABSOLUTE)
 
   # Build mock Ros2 and RQml.Recorder modules in the build tree.
   # Ros2 types (Subscription, ServiceClient, ...) are C++ mocks registered in the test
@@ -90,6 +95,7 @@ if(BUILD_TESTING)
   ament_add_test(
     test_plugins
     COMMAND $<TARGET_FILE:test_plugins>
+        -import "${RQML_CORE_QML_DIR}"
         -import "${CMAKE_CURRENT_BINARY_DIR}/test_mocks"
         -import "${CMAKE_CURRENT_SOURCE_DIR}/qml"
         -junitxml

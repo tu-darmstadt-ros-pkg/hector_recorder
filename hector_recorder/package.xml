@@ -11,6 +11,7 @@
 
   <depend>fmt</depend>
   <depend>hector_recorder_msgs</depend>
+  <depend>libboost-dev</depend>
   <depend>libncurses-dev</depend>
   <depend>rclcpp</depend>
   <depend>rosbag2_cpp</depend>

@@ -101,17 +101,16 @@ Item {
     }
     TestCase {
         function checkboxStates() {
-            var listView = find("configEditorTopicListView");
+            var listView = findReady("configEditorTopicListView");
             var states = [];
             for (var i = 0; i < listView.count; ++i)
-                states.push(find("configEditorTopicCheckbox_" + i).checked);
+                states.push(findReady("configEditorTopicCheckbox_" + i).checked);
             return states.join(",");
         }
         function clickTab(objectName) {
-            var tab = find(objectName);
-            verify(tab !== null, objectName + " should exist");
+            var tab = findReady(objectName);
             mouseClick(tab);
-            tryCompare(find("configEditorTabBar"), "currentIndex", objectName === "configEditorYamlEditorTab" ? 1 : 0, 1000);
+            tryCompare(findReady("configEditorTabBar"), "currentIndex", objectName === "configEditorYamlEditorTab" ? 1 : 0, 1000);
         }
         function findReady(name) {
             // Delegates and popup contents are created asynchronously; wait until the item exists
