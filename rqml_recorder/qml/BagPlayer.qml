@@ -11,8 +11,44 @@ import "elements"
  */
 Rectangle {
     id: root
-    anchors.fill: parent
+
     property var kddockwidgets_min_size: Qt.size(700, 450)
+
+    // ========================================================================
+    // Helpers
+    // ========================================================================
+
+    function _applyScan() {
+        context.bag_path = pathField.text;
+        bagBrowser.currentPath = pathField.text;
+        bagBrowser.refresh();
+    }
+    function _updateCompletions() {
+        let completions = scanner.completePath(pathField.text);
+        completionModel.clear();
+
+        if (completions.length === 0) {
+            completionPopup.close();
+            return;
+        }
+
+        if (completions.length === 1 && completions[0] === pathField.text) {
+            completionPopup.close();
+            return;
+        }
+
+        for (let i = 0; i < completions.length; i++) {
+            completionModel.append({
+                path: completions[i]
+            });
+        }
+
+        completionList.currentIndex = 0;
+        if (!completionPopup.visible)
+            completionPopup.open();
+    }
+
+    anchors.fill: parent
     color: palette.base
 
     Component.onCompleted: {
@@ -22,7 +58,9 @@ Rectangle {
 
     Timer {
         id: autoScanTimer
+
         interval: 100
+
         onTriggered: bagBrowser.refresh()
     }
 
@@ -32,23 +70,20 @@ Rectangle {
 
     LocalBagScanner {
         id: scanner
+
+        objectName: "bagPlayerScanner"
         scanPath: context.bag_path ?? "~/bags/"
 
-        onServiceResponse: function(serviceName, success, message) {
+        onServiceResponse: function (serviceName, success, message) {
             statusLabel.text = (success ? "\u2713 " : "\u2717 ") + message;
             statusLabel.color = success ? Material.color(Material.Green) : Material.color(Material.Red);
             statusResetTimer.restart();
         }
     }
-
     BagPlayerEngine {
         id: playerEngine
 
-        onPlaybackFinished: {
-            statusLabel.text = "\u2713 Playback finished: " + bagName;
-            statusLabel.color = palette.mid;
-            statusResetTimer.restart();
-        }
+        objectName: "bagPlayerEngine"
 
         onErrorMessageChanged: {
             if (errorMessage) {
@@ -56,6 +91,11 @@ Rectangle {
                 statusLabel.color = Material.color(Material.Red);
                 statusResetTimer.restart();
             }
+        }
+        onPlaybackFinished: {
+            statusLabel.text = "\u2713 Playback finished: " + bagName;
+            statusLabel.color = palette.mid;
+            statusResetTimer.restart();
         }
     }
 
@@ -78,32 +118,26 @@ Rectangle {
             z: 10
 
             Label {
-                text: "Bag Directory:"
                 font.bold: true
+                text: "Bag Directory:"
             }
-
             Item {
                 Layout.fillWidth: true
                 implicitHeight: pathField.implicitHeight
 
                 TextField {
                     id: pathField
-                    objectName: "bagPlayerPathField"
+
                     anchors.left: parent.left
                     anchors.right: parent.right
-                    text: context.bag_path ?? "~/bags/"
+                    objectName: "bagPlayerPathField"
                     placeholderText: "~/bags/"
                     selectByMouse: true
+                    text: context.bag_path ?? "~/bags/"
 
-                    onTextEdited: completionTimer.restart()
-
-                    onAccepted: {
-                        completionPopup.close();
-                        _applyScan();
-                    }
-
-                    Keys.onPressed: function(event) {
-                        if (!completionPopup.visible) return;
+                    Keys.onPressed: function (event) {
+                        if (!completionPopup.visible)
+                            return;
 
                         if (event.key === Qt.Key_Down) {
                             completionList.incrementCurrentIndex();
@@ -124,56 +158,64 @@ Rectangle {
                             event.accepted = true;
                         }
                     }
+                    onAccepted: {
+                        completionPopup.close();
+                        _applyScan();
+                    }
+                    onTextEdited: completionTimer.restart()
 
                     Timer {
                         id: completionTimer
+
                         interval: 150
+
                         onTriggered: _updateCompletions()
                     }
                 }
-
                 Popup {
                     id: completionPopup
-                    objectName: "bagPlayerCompletionPopup"
-                    y: pathField.height
-                    width: pathField.width
-                    height: Math.min(completionList.contentHeight + 8, 250)
-                    padding: 4
+
                     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+                    height: Math.min(completionList.contentHeight + 8, 250)
+                    objectName: "bagPlayerCompletionPopup"
+                    padding: 4
+                    width: pathField.width
+                    y: pathField.height
 
                     background: Rectangle {
-                        color: palette.window
                         border.color: palette.mid
+                        color: palette.window
                         radius: 4
 
                         Rectangle {
                             anchors.fill: parent
                             anchors.margins: -1
-                            z: -1
-                            radius: 5
-                            color: "transparent"
                             border.color: Qt.rgba(0, 0, 0, 0.15)
+                            color: "transparent"
+                            radius: 5
+                            z: -1
                         }
                     }
 
                     ListView {
                         id: completionList
-                        objectName: "bagPlayerCompletionList"
+
                         anchors.fill: parent
-                        model: completionModel
                         clip: true
                         currentIndex: 0
+                        model: completionModel
+                        objectName: "bagPlayerCompletionList"
 
                         delegate: ItemDelegate {
-                            objectName: "bagPlayerCompletionItem_" + index
-                            width: completionList.width
                             height: 28
                             highlighted: index === completionList.currentIndex
+                            objectName: "bagPlayerCompletionItem_" + index
+                            width: completionList.width
 
                             contentItem: Label {
-                                text: model.path
-                                font.family: "monospace"
                                 elide: Text.ElideMiddle
+                                font.family: "monospace"
+                                text: model.path
                                 verticalAlignment: Text.AlignVCenter
                             }
 
@@ -186,16 +228,16 @@ Rectangle {
                         }
                     }
                 }
-
                 ListModel {
                     id: completionModel
+
                 }
             }
-
             Button {
+                highlighted: true
                 objectName: "bagPlayerScanButton"
                 text: "Scan"
-                highlighted: true
+
                 onClicked: {
                     completionPopup.close();
                     _applyScan();
@@ -209,8 +251,10 @@ Rectangle {
 
         PlaybackPanel {
             id: playbackPanel
+
             Layout.fillWidth: true
             engine: playerEngine
+            objectName: "bagPlayerPlaybackPanel"
         }
 
         // --------------------------------------------------------------------
@@ -219,24 +263,25 @@ Rectangle {
 
         BagBrowser {
             id: bagBrowser
-            Layout.fillWidth: true
+
             Layout.fillHeight: true
+            Layout.fillWidth: true
+            currentPath: context.bag_path ?? "~/bags/"
+            objectName: "bagPlayerBagBrowser"
             recorderInterface: scanner
             showPathBar: false
-            currentPath: context.bag_path ?? "~/bags/"
 
-            onStatusMessage: function(msg, isError) {
-                statusLabel.text = (isError ? "\u2717 " : "\u2713 ") + msg;
-                statusLabel.color = isError ? Material.color(Material.Red) : Material.color(Material.Green);
-                statusResetTimer.restart();
-            }
-
-            onPlayRequested: function(bagPath, bagName) {
+            onPlayRequested: function (bagPath, bagName) {
                 playerEngine.load(bagPath);
                 // Auto-play after loading
                 playerEngine.play([]);
                 statusLabel.text = "\u25B6 Playing: " + bagName;
                 statusLabel.color = palette.mid;
+            }
+            onStatusMessage: function (msg, isError) {
+                statusLabel.text = (isError ? "\u2717 " : "\u2713 ") + msg;
+                statusLabel.color = isError ? Material.color(Material.Red) : Material.color(Material.Green);
+                statusResetTimer.restart();
             }
         }
 
@@ -246,53 +291,23 @@ Rectangle {
 
         Label {
             id: statusLabel
-            objectName: "bagPlayerStatusLabel"
+
             Layout.fillWidth: true
             color: palette.mid
             elide: Text.ElideMiddle
+            objectName: "bagPlayerStatusLabel"
             text: "Select a directory and click Scan to browse bags."
 
             Timer {
                 id: statusResetTimer
+
                 interval: 5000
+
                 onTriggered: {
                     statusLabel.text = "Scanning: " + (context.bag_path ?? "~/bags/");
                     statusLabel.color = palette.mid;
                 }
             }
         }
-    }
-
-    // ========================================================================
-    // Helpers
-    // ========================================================================
-
-    function _applyScan() {
-        context.bag_path = pathField.text;
-        bagBrowser.currentPath = pathField.text;
-        bagBrowser.refresh();
-    }
-
-    function _updateCompletions() {
-        let completions = scanner.completePath(pathField.text);
-        completionModel.clear();
-
-        if (completions.length === 0) {
-            completionPopup.close();
-            return;
-        }
-
-        if (completions.length === 1 && completions[0] === pathField.text) {
-            completionPopup.close();
-            return;
-        }
-
-        for (let i = 0; i < completions.length; i++) {
-            completionModel.append({ path: completions[i] });
-        }
-
-        completionList.currentIndex = 0;
-        if (!completionPopup.visible)
-            completionPopup.open();
     }
 }

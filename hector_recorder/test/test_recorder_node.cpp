@@ -1,9 +1,9 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <rtest/create_timer_mock.hpp>
 #include <rtest/publisher_mock.hpp>
 #include <rtest/service_mock.hpp>
-#include <rtest/create_timer_mock.hpp>
 
 #include <hector_recorder/recorder_node.hpp>
 
@@ -32,16 +32,12 @@ protected:
   std::shared_ptr<rtest::ServiceMock<hector_recorder_msgs::srv::SplitBag>> split_srv_mock_;
   std::shared_ptr<rtest::ServiceMock<hector_recorder_msgs::srv::ApplyConfig>> config_srv_mock_;
   std::shared_ptr<rtest::ServiceMock<hector_recorder_msgs::srv::SaveConfig>> save_config_srv_mock_;
-  std::shared_ptr<rtest::ServiceMock<hector_recorder_msgs::srv::GetAvailableTopics>>
-      topics_srv_mock_;
-  std::shared_ptr<rtest::ServiceMock<hector_recorder_msgs::srv::GetAvailableServices>>
-      services_srv_mock_;
+  std::shared_ptr<rtest::ServiceMock<hector_recorder_msgs::srv::GetAvailableTopics>> topics_srv_mock_;
+  std::shared_ptr<rtest::ServiceMock<hector_recorder_msgs::srv::GetAvailableServices>> services_srv_mock_;
   std::shared_ptr<rtest::ServiceMock<hector_recorder_msgs::srv::GetConfig>> get_config_srv_mock_;
-  std::shared_ptr<rtest::ServiceMock<hector_recorder_msgs::srv::GetRecorderInfo>>
-      get_info_srv_mock_;
+  std::shared_ptr<rtest::ServiceMock<hector_recorder_msgs::srv::GetRecorderInfo>> get_info_srv_mock_;
   std::shared_ptr<rtest::ServiceMock<hector_recorder_msgs::srv::ListBags>> list_bags_srv_mock_;
-  std::shared_ptr<rtest::ServiceMock<hector_recorder_msgs::srv::GetBagDetails>>
-      get_bag_details_srv_mock_;
+  std::shared_ptr<rtest::ServiceMock<hector_recorder_msgs::srv::GetBagDetails>> get_bag_details_srv_mock_;
   std::shared_ptr<rtest::ServiceMock<hector_recorder_msgs::srv::DeleteBag>> delete_bag_srv_mock_;
 
   // Accessors for private members
@@ -72,12 +68,12 @@ protected:
     status_pub_mock_ = rtest::findPublisher<hector_recorder_msgs::msg::RecorderStatus>(
         node_, "/test_recorder/recorder_status" );
 
-    start_srv_mock_ = rtest::findService<hector_recorder_msgs::srv::StartRecording>(
-        node_, "~/start_recording" );
-    stop_srv_mock_ = rtest::findService<hector_recorder_msgs::srv::StopRecording>(
-        node_, "~/stop_recording" );
-    pause_srv_mock_ = rtest::findService<hector_recorder_msgs::srv::PauseRecording>(
-        node_, "~/pause_recording" );
+    start_srv_mock_ =
+        rtest::findService<hector_recorder_msgs::srv::StartRecording>( node_, "~/start_recording" );
+    stop_srv_mock_ =
+        rtest::findService<hector_recorder_msgs::srv::StopRecording>( node_, "~/stop_recording" );
+    pause_srv_mock_ =
+        rtest::findService<hector_recorder_msgs::srv::PauseRecording>( node_, "~/pause_recording" );
     resume_srv_mock_ = rtest::findService<hector_recorder_msgs::srv::ResumeRecording>(
         node_, "~/resume_recording" );
     split_srv_mock_ =
@@ -96,8 +92,8 @@ protected:
         node_, "~/get_recorder_info" );
     list_bags_srv_mock_ =
         rtest::findService<hector_recorder_msgs::srv::ListBags>( node_, "~/list_bags" );
-    get_bag_details_srv_mock_ = rtest::findService<hector_recorder_msgs::srv::GetBagDetails>(
-        node_, "~/get_bag_details" );
+    get_bag_details_srv_mock_ =
+        rtest::findService<hector_recorder_msgs::srv::GetBagDetails>( node_, "~/get_bag_details" );
     delete_bag_srv_mock_ =
         rtest::findService<hector_recorder_msgs::srv::DeleteBag>( node_, "~/delete_bag" );
   }
@@ -124,7 +120,7 @@ protected:
   }
 
   // Helper to invoke a service callback via the mock
-  template <typename ServiceT>
+  template<typename ServiceT>
   auto callService( std::shared_ptr<rtest::ServiceMock<ServiceT>> &mock,
                     std::shared_ptr<typename ServiceT::Request> request )
       -> std::shared_ptr<typename ServiceT::Response>
@@ -143,7 +139,7 @@ protected:
   }
 
   // Direct callback invocation helper — calls the node's service callback directly
-  template <typename ServiceT>
+  template<typename ServiceT>
   std::shared_ptr<typename ServiceT::Response>
   invokeCallback( rclcpp::Service<ServiceT> *service,
                   std::shared_ptr<typename ServiceT::Request> request )
@@ -205,11 +201,10 @@ TEST_F( RecorderNodeTest, PauseRecordingWhenIdle_Fails )
 {
   auto request = std::make_shared<hector_recorder_msgs::srv::PauseRecording::Request>();
   EXPECT_CALL( *pause_srv_mock_, send_response( ::testing::_, ::testing::_ ) )
-      .WillOnce(
-          []( rmw_request_id_t &, hector_recorder_msgs::srv::PauseRecording::Response &r ) {
-            EXPECT_FALSE( r.success );
-            EXPECT_EQ( r.message, "Not currently recording." );
-          } );
+      .WillOnce( []( rmw_request_id_t &, hector_recorder_msgs::srv::PauseRecording::Response &r ) {
+        EXPECT_FALSE( r.success );
+        EXPECT_EQ( r.message, "Not currently recording." );
+      } );
   pause_srv_mock_->handle_request( std::make_shared<rmw_request_id_t>(), request );
 }
 
@@ -217,11 +212,10 @@ TEST_F( RecorderNodeTest, ResumeRecordingWhenIdle_Fails )
 {
   auto request = std::make_shared<hector_recorder_msgs::srv::ResumeRecording::Request>();
   EXPECT_CALL( *resume_srv_mock_, send_response( ::testing::_, ::testing::_ ) )
-      .WillOnce(
-          []( rmw_request_id_t &, hector_recorder_msgs::srv::ResumeRecording::Response &r ) {
-            EXPECT_FALSE( r.success );
-            EXPECT_EQ( r.message, "Not currently recording." );
-          } );
+      .WillOnce( []( rmw_request_id_t &, hector_recorder_msgs::srv::ResumeRecording::Response &r ) {
+        EXPECT_FALSE( r.success );
+        EXPECT_EQ( r.message, "Not currently recording." );
+      } );
   resume_srv_mock_->handle_request( std::make_shared<rmw_request_id_t>(), request );
 }
 
@@ -244,11 +238,10 @@ TEST_F( RecorderNodeTest, GetRecorderInfo_ReturnsConfiguredValues )
 {
   auto request = std::make_shared<hector_recorder_msgs::srv::GetRecorderInfo::Request>();
   EXPECT_CALL( *get_info_srv_mock_, send_response( ::testing::_, ::testing::_ ) )
-      .WillOnce(
-          []( rmw_request_id_t &, hector_recorder_msgs::srv::GetRecorderInfo::Response &r ) {
-            EXPECT_EQ( r.recorded_by, "test_user@test_host" );
-            EXPECT_FALSE( r.hostname.empty() );
-          } );
+      .WillOnce( []( rmw_request_id_t &, hector_recorder_msgs::srv::GetRecorderInfo::Response &r ) {
+        EXPECT_EQ( r.recorded_by, "test_user@test_host" );
+        EXPECT_FALSE( r.hostname.empty() );
+      } );
   get_info_srv_mock_->handle_request( std::make_shared<rmw_request_id_t>(), request );
 }
 
@@ -344,10 +337,9 @@ TEST_F( RecorderNodeTest, ConfigRoundTrip_Idempotent )
     request->config_yaml = known_yaml;
     request->restart = false;
     EXPECT_CALL( *config_srv_mock_, send_response( ::testing::_, ::testing::_ ) )
-        .WillOnce(
-            []( rmw_request_id_t &, hector_recorder_msgs::srv::ApplyConfig::Response &r ) {
-              EXPECT_TRUE( r.success );
-            } );
+        .WillOnce( []( rmw_request_id_t &, hector_recorder_msgs::srv::ApplyConfig::Response &r ) {
+          EXPECT_TRUE( r.success );
+        } );
     config_srv_mock_->handle_request( std::make_shared<rmw_request_id_t>(), request );
   }
 
@@ -382,10 +374,9 @@ TEST_F( RecorderNodeTest, ConfigRoundTrip_Idempotent )
     request->config_yaml = normalized_yaml;
     request->restart = false;
     EXPECT_CALL( *config_srv_mock_, send_response( ::testing::_, ::testing::_ ) )
-        .WillOnce(
-            []( rmw_request_id_t &, hector_recorder_msgs::srv::ApplyConfig::Response &r ) {
-              EXPECT_TRUE( r.success );
-            } );
+        .WillOnce( []( rmw_request_id_t &, hector_recorder_msgs::srv::ApplyConfig::Response &r ) {
+          EXPECT_TRUE( r.success );
+        } );
     config_srv_mock_->handle_request( std::make_shared<rmw_request_id_t>(), request );
   }
 
@@ -424,8 +415,7 @@ TEST_F( RecorderNodeTest, SaveConfig_WritesFile )
   // Verify file was written
   ASSERT_TRUE( fs::exists( tmp_path ) );
   std::ifstream ifs( tmp_path );
-  std::string content( ( std::istreambuf_iterator<char>( ifs ) ),
-                       std::istreambuf_iterator<char>() );
+  std::string content( ( std::istreambuf_iterator<char>( ifs ) ), std::istreambuf_iterator<char>() );
   EXPECT_EQ( content, request->config_yaml );
 
   fs::remove( tmp_path );
@@ -437,8 +427,7 @@ TEST_F( RecorderNodeTest, SaveConfig_WritesFile )
 
 TEST_F( RecorderNodeTest, StatusPublish_IdleState )
 {
-  EXPECT_CALL( *status_pub_mock_,
-               publish( ::testing::_ ) )
+  EXPECT_CALL( *status_pub_mock_, publish( ::testing::_ ) )
       .WillOnce( []( const hector_recorder_msgs::msg::RecorderStatus &msg ) {
         EXPECT_EQ( msg.state, hector_recorder_msgs::msg::RecorderStatus::IDLE );
         EXPECT_EQ( msg.node_name, "/test_recorder" );
@@ -509,10 +498,9 @@ TEST_F( RecorderNodeTest, GetBagDetails_InvalidPath_Fails )
   request->bag_path = "/nonexistent/bag/path";
 
   EXPECT_CALL( *get_bag_details_srv_mock_, send_response( ::testing::_, ::testing::_ ) )
-      .WillOnce(
-          []( rmw_request_id_t &, hector_recorder_msgs::srv::GetBagDetails::Response &r ) {
-            EXPECT_FALSE( r.success );
-          } );
+      .WillOnce( []( rmw_request_id_t &, hector_recorder_msgs::srv::GetBagDetails::Response &r ) {
+        EXPECT_FALSE( r.success );
+      } );
   get_bag_details_srv_mock_->handle_request( std::make_shared<rmw_request_id_t>(), request );
 }
 

@@ -60,9 +60,8 @@ static bool readBagInfo( const fs::path &bag_dir, QVariantMap &out )
 
     // Read recorded_by from custom_data if available
     auto it = metadata.custom_data.find( "recorded_by" );
-    out["recordedBy"] = ( it != metadata.custom_data.end() )
-                            ? QString::fromStdString( it->second )
-                            : QString();
+    out["recordedBy"] =
+        ( it != metadata.custom_data.end() ) ? QString::fromStdString( it->second ) : QString();
 
     return true;
   } catch ( const std::exception & ) {
@@ -87,7 +86,7 @@ static std::string expandHome( const std::string &path )
 // LocalBagScanner
 // ============================================================================
 
-LocalBagScanner::LocalBagScanner( QObject *parent ) : QObject( parent ) {}
+LocalBagScanner::LocalBagScanner( QObject *parent ) : QObject( parent ) { }
 
 QString LocalBagScanner::scanPath() const { return scanPath_; }
 
@@ -113,9 +112,9 @@ void LocalBagScanner::listBags( const QString &path, QJSValue callback )
   QVariantList bags;
 
   if ( !fs::is_directory( scan_dir ) ) {
-    emit serviceResponse( "list_bags", false,
-                          QString( "Path is not a directory: %1" )
-                              .arg( QString::fromStdString( scan_dir ) ) );
+    emit serviceResponse(
+        "list_bags", false,
+        QString( "Path is not a directory: %1" ).arg( QString::fromStdString( scan_dir ) ) );
     if ( callback.isCallable() ) {
       callback.call( { QJSValue::NullValue } );
     }
@@ -229,8 +228,7 @@ void LocalBagScanner::deleteBag( const QString &bagPath, QJSValue callback )
   rosbag2_storage::MetadataIo metadata_io;
   if ( !metadata_io.metadata_file_exists( bag_path ) ) {
     bool success = false;
-    QString message =
-        QString( "Not a valid rosbag directory (no metadata.yaml): %1" ).arg( bagPath );
+    QString message = QString( "Not a valid rosbag directory (no metadata.yaml): %1" ).arg( bagPath );
     emit serviceResponse( "delete_bag", success, message );
     if ( callback.isCallable() ) {
       callback.call( { QJSValue( success ), QJSValue( message ) } );
@@ -243,16 +241,15 @@ void LocalBagScanner::deleteBag( const QString &bagPath, QJSValue callback )
     auto removed = fs::remove_all( bag_path, ec );
     if ( ec ) {
       bool success = false;
-      QString message = QString( "Failed to delete: %1" ).arg( QString::fromStdString( ec.message() ) );
+      QString message =
+          QString( "Failed to delete: %1" ).arg( QString::fromStdString( ec.message() ) );
       emit serviceResponse( "delete_bag", success, message );
       if ( callback.isCallable() ) {
         callback.call( { QJSValue( success ), QJSValue( message ) } );
       }
     } else {
       bool success = true;
-      QString message = QString( "Deleted %1 (%2 files removed)" )
-                            .arg( bagPath )
-                            .arg( removed );
+      QString message = QString( "Deleted %1 (%2 files removed)" ).arg( bagPath ).arg( removed );
       emit serviceResponse( "delete_bag", success, message );
       if ( callback.isCallable() ) {
         callback.call( { QJSValue( success ), QJSValue( message ) } );
@@ -344,9 +341,8 @@ void LocalBagScanner::fetchRecorderInfo( QJSValue callback )
       QJSValue info = engine->newObject();
       info.setProperty( "hostname", QHostInfo::localHostName() );
       QString user = QString::fromLocal8Bit( qgetenv( "USER" ) );
-      info.setProperty( "recordedBy",
-                        user.isEmpty() ? QHostInfo::localHostName()
-                                       : user + "@" + QHostInfo::localHostName() );
+      info.setProperty( "recordedBy", user.isEmpty() ? QHostInfo::localHostName()
+                                                     : user + "@" + QHostInfo::localHostName() );
       info.setProperty( "configPath", QString() );
       callback.call( { info } );
     }

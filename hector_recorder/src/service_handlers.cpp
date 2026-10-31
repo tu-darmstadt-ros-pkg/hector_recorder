@@ -17,8 +17,7 @@ namespace hector_recorder
 
 void fillRecorderStatus( hector_recorder_msgs::msg::RecorderStatus &status_msg,
                          RecorderImpl *recorder, const CustomOptions &custom_options,
-                         const rosbag2_storage::StorageOptions &storage_options,
-                         rclcpp::Node *node )
+                         const rosbag2_storage::StorageOptions &storage_options, rclcpp::Node *node )
 {
   status_msg.node_name = node->get_fully_qualified_name();
   status_msg.output_dir = storage_options.uri;
@@ -92,12 +91,10 @@ static void createAndStartRecorder( std::unique_ptr<RecorderImpl> &recorder,
 void handleStartRecording( std::unique_ptr<RecorderImpl> &recorder,
                            rosbag2_storage::StorageOptions &storage_options,
                            const rosbag2_transport::RecordOptions &record_options,
-                           const CustomOptions &custom_options,
-                           const std::string &raw_output_uri,
+                           const CustomOptions &custom_options, const std::string &raw_output_uri,
                            const std::string &request_output_dir,
                            const std::string &request_recorded_by, rclcpp::Node *node,
-                           bool &out_success, std::string &out_message,
-                           std::string &out_bag_path )
+                           bool &out_success, std::string &out_message, std::string &out_bag_path )
 {
   if ( recorder && recorder->is_recording() ) {
     out_success = false;
@@ -114,7 +111,7 @@ void handleStartRecording( std::unique_ptr<RecorderImpl> &recorder,
 
     // Store recorded_by in bag custom_data so it persists in metadata.yaml
     // Priority: request > custom_options > default ($USER@hostname)
-    std::string recorded_by = !request_recorded_by.empty() ? request_recorded_by
+    std::string recorded_by = !request_recorded_by.empty()          ? request_recorded_by
                               : !custom_options.recorded_by.empty() ? custom_options.recorded_by
                                                                     : getDefaultRecordedBy();
     storage_options.custom_data["recorded_by"] = recorded_by;
@@ -132,9 +129,8 @@ void handleStartRecording( std::unique_ptr<RecorderImpl> &recorder,
 }
 
 void handleStopRecording( std::unique_ptr<RecorderImpl> &recorder,
-                          const rosbag2_storage::StorageOptions &storage_options,
-                          bool &out_success, std::string &out_message,
-                          std::string &out_bag_path )
+                          const rosbag2_storage::StorageOptions &storage_options, bool &out_success,
+                          std::string &out_message, std::string &out_bag_path )
 {
   if ( !recorder || !recorder->is_recording() ) {
     out_success = false;
@@ -157,10 +153,9 @@ void handleStopRecording( std::unique_ptr<RecorderImpl> &recorder,
 void handleApplyConfig( std::unique_ptr<RecorderImpl> &recorder, CustomOptions &custom_options,
                         rosbag2_transport::RecordOptions &record_options,
                         rosbag2_storage::StorageOptions &storage_options,
-                        std::string &raw_output_uri, const std::string &config_yaml,
-                        bool restart, const std::string &preset_name, rclcpp::Node *node,
-                        bool &out_success, std::string &out_message,
-                        std::string &out_active_config_yaml )
+                        std::string &raw_output_uri, const std::string &config_yaml, bool restart,
+                        const std::string &preset_name, rclcpp::Node *node, bool &out_success,
+                        std::string &out_message, std::string &out_active_config_yaml )
 {
   try {
     // Resolve YAML: if a preset name is given, load from the config file's directory.
@@ -208,7 +203,7 @@ void handleApplyConfig( std::unique_ptr<RecorderImpl> &recorder, CustomOptions &
     record_options = new_record;
     if ( !new_storage.uri.empty() )
       raw_output_uri = new_storage.uri;
-    new_storage.uri = storage_options.uri;  // preserve active bag path
+    new_storage.uri = storage_options.uri; // preserve active bag path
     storage_options = new_storage;
 
     if ( restart && was_recording ) {
@@ -240,8 +235,7 @@ void handleApplyConfig( std::unique_ptr<RecorderImpl> &recorder, CustomOptions &
 }
 
 void handleGetPresetConfig( const CustomOptions &custom_options, const std::string &name,
-                            bool &out_success, std::string &out_config_yaml,
-                            std::string &out_message )
+                            bool &out_success, std::string &out_config_yaml, std::string &out_message )
 {
   if ( custom_options.config_path.empty() ) {
     out_success = false;
@@ -381,8 +375,7 @@ static bool readBagInfo( const fs::path &bag_dir, hector_recorder_msgs::msg::Bag
     info.storage_id = metadata.storage_identifier;
     info.topic_count = static_cast<uint32_t>( metadata.topics_with_message_count.size() );
     info.message_count = static_cast<uint32_t>( metadata.message_count );
-    info.duration_secs =
-        std::chrono::duration<double>( metadata.duration ).count();
+    info.duration_secs = std::chrono::duration<double>( metadata.duration ).count();
 
     // Format start time as ISO 8601
     auto start_ns = metadata.starting_time.time_since_epoch();
@@ -409,10 +402,9 @@ static bool readBagInfo( const fs::path &bag_dir, hector_recorder_msgs::msg::Bag
   }
 }
 
-void handleListBags( const std::string &path,
-                     const rosbag2_storage::StorageOptions &storage_options,
-                     std::vector<hector_recorder_msgs::msg::BagInfo> &out_bags,
-                     bool &out_success, std::string &out_message )
+void handleListBags( const std::string &path, const rosbag2_storage::StorageOptions &storage_options,
+                     std::vector<hector_recorder_msgs::msg::BagInfo> &out_bags, bool &out_success,
+                     std::string &out_message )
 {
   std::string scan_dir = path.empty() ? storage_options.uri : path;
 
@@ -450,8 +442,7 @@ void handleListBags( const std::string &path,
   out_message = "Found " + std::to_string( out_bags.size() ) + " bags in " + scan_dir;
 }
 
-void handleGetBagDetails( const std::string &bag_path,
-                          hector_recorder_msgs::msg::BagInfo &out_info,
+void handleGetBagDetails( const std::string &bag_path, hector_recorder_msgs::msg::BagInfo &out_info,
                           std::vector<hector_recorder_msgs::msg::BagTopicInfo> &out_topics,
                           bool &out_success, std::string &out_message )
 {
@@ -481,8 +472,8 @@ void handleGetBagDetails( const std::string &bag_path,
   }
 }
 
-void handleDeleteBag( const std::string &bag_path, bool confirm,
-                      bool &out_success, std::string &out_message )
+void handleDeleteBag( const std::string &bag_path, bool confirm, bool &out_success,
+                      std::string &out_message )
 {
   if ( !confirm ) {
     out_success = false;

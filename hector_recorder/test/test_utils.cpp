@@ -1,6 +1,6 @@
-#include <gtest/gtest.h>
 #include <filesystem>
 #include <fstream>
+#include <gtest/gtest.h>
 
 #include "hector_recorder/config_yaml.h"
 #include "hector_recorder/service_handlers.h"
@@ -30,8 +30,7 @@ protected:
   }
 
   /// Create a fake rosbag directory with a metadata.yaml
-  fs::path createFakeBag( const std::string &name,
-                          const std::string &recorded_by = "" )
+  fs::path createFakeBag( const std::string &name, const std::string &recorded_by = "" )
   {
     fs::path bag = tmp_dir_ / name;
     fs::create_directories( bag );
@@ -520,10 +519,7 @@ TEST( FormatTest, BandwidthToString )
 // String utility tests
 // ========================================================================
 
-TEST( StringUtilsTest, ClipString_Short )
-{
-  EXPECT_EQ( clipString( "/short", 20 ), "/short" );
-}
+TEST( StringUtilsTest, ClipString_Short ) { EXPECT_EQ( clipString( "/short", 20 ), "/short" ); }
 
 TEST( StringUtilsTest, ClipString_Long )
 {
@@ -648,7 +644,9 @@ TEST( RecorderInfoTest, CustomRecordedBy )
 // handleSaveConfig tests
 // ========================================================================
 
-class SaveConfigTest : public UtilsTest {};
+class SaveConfigTest : public UtilsTest
+{
+};
 
 TEST_F( SaveConfigTest, SaveAndReadBack )
 {
@@ -664,8 +662,7 @@ TEST_F( SaveConfigTest, SaveAndReadBack )
 
   // Read back
   std::ifstream ifs( file.string() );
-  std::string content( ( std::istreambuf_iterator<char>( ifs ) ),
-                       std::istreambuf_iterator<char>() );
+  std::string content( ( std::istreambuf_iterator<char>( ifs ) ), std::istreambuf_iterator<char>() );
   EXPECT_EQ( content, yaml );
 }
 
@@ -688,7 +685,9 @@ TEST_F( SaveConfigTest, SaveToInvalidPath )
 // handleDeleteBag tests
 // ========================================================================
 
-class DeleteBagTest : public UtilsTest {};
+class DeleteBagTest : public UtilsTest
+{
+};
 
 TEST_F( DeleteBagTest, DeleteWithConfirm )
 {
@@ -741,7 +740,9 @@ TEST_F( DeleteBagTest, DeleteNonExistent )
 // handleListBags tests
 // ========================================================================
 
-class ListBagsTest : public UtilsTest {};
+class ListBagsTest : public UtilsTest
+{
+};
 
 TEST_F( ListBagsTest, FindsBags )
 {
@@ -822,7 +823,9 @@ TEST_F( ListBagsTest, EmptyDirectory )
 // handleGetBagDetails tests
 // ========================================================================
 
-class BagDetailsTest : public UtilsTest {};
+class BagDetailsTest : public UtilsTest
+{
+};
 
 TEST_F( BagDetailsTest, ReadsDetails )
 {

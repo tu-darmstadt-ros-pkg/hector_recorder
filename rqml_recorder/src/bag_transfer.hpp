@@ -55,7 +55,7 @@ public:
    * @param localDir Local directory to store the transferred bag
    */
   Q_INVOKABLE void start( const QString &hostname, const QString &remotePath,
-                           const QString &localDir );
+                          const QString &localDir );
 
   /// Cancel a running transfer.
   Q_INVOKABLE void cancel();

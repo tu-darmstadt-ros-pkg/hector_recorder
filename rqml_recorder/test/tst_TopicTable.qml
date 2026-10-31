@@ -1,212 +1,203 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Controls.Material
 import QtTest
 import "../qml/elements" as Elements
 
 Item {
-    id: windowRoot
-    width: 800
-    height: 600
+    id: root
 
-    ListModel {
-        id: topicModel
+    function find(name) {
+        return helpers.findChild(root, name);
     }
 
+    height: 600
+    width: 800
+
+    Utils {
+        id: helpers
+
+    }
+    ListModel {
+        id: topicModel
+
+    }
     Elements.TopicTable {
         id: topicTable
+
         anchors.fill: parent
         model: topicModel
     }
-
     TestCase {
-        name: "TopicTableTest"
-        when: windowShown
-
+        function addSortFixture() {
+            addTopic("/a", 10, 5.0, 100, 100, "std_msgs/msg/String", 1, false);
+            addTopic("/c", 30, 15.0, 300, 300, "sensor_msgs/msg/Imu", 1, false);
+            addTopic("/b", 20, 10.0, 200, 200, "geometry_msgs/msg/Twist", 1, false);
+            tryCompare(find("topicTableListView"), "count", 3, 1000);
+        }
+        function addTopic(topic, msgCount, frequency, bandwidth, size, type, publisherCount, throttled) {
+            topicModel.append({
+                "topic": topic,
+                "msgCount": msgCount,
+                "frequency": frequency,
+                "bandwidth": bandwidth,
+                "size": size,
+                "type": type,
+                "publisherCount": publisherCount,
+                "qosReliability": "",
+                "throttled": throttled
+            });
+        }
         function init() {
             topicModel.clear();
             topicTable.sortColumn = "size";
             topicTable.sortAscending = false;
+            tryCompare(find("topicTableListView"), "count", 0, 1000);
         }
-
-        // ---- Test 1: Renders rows from model ----
-        function test_01_renders_rows() {
-            topicModel.append({
-                topic: "/camera", msgCount: 100, frequency: 30.0,
-                bandwidth: 15000, size: 500000, type: "sensor_msgs/msg/Image",
-                publisherCount: 1, qosReliability: "reliable", throttled: false
-            });
-            topicModel.append({
-                topic: "/lidar", msgCount: 50, frequency: 10.0,
-                bandwidth: 5000, size: 200000, type: "sensor_msgs/msg/PointCloud2",
-                publisherCount: 1, qosReliability: "best_effort", throttled: false
-            });
-            topicModel.append({
-                topic: "/imu", msgCount: 200, frequency: 100.0,
-                bandwidth: 1000, size: 50000, type: "sensor_msgs/msg/Imu",
-                publisherCount: 1, qosReliability: "reliable", throttled: false
-            });
-
-            tryVerify(function() { return topicTable.sortedIndices.length === 3; }, 1000,
-                "Should have 3 sorted indices");
+        function rowTopics() {
+            var topics = [];
+            var listView = find("topicTableListView");
+            for (var i = 0; i < listView.count; ++i) {
+                var label = find("topicTableTopicLabel_" + i);
+                topics.push(label ? label.text : null);
+            }
+            return topics.join(",");
         }
-
-        // ---- Test 2: Sorting by column ----
-        function test_02_sorting() {
-            topicModel.append({
-                topic: "/a", msgCount: 10, frequency: 5.0,
-                bandwidth: 100, size: 100, type: "std_msgs/msg/String",
-                publisherCount: 1, qosReliability: "", throttled: false
-            });
-            topicModel.append({
-                topic: "/c", msgCount: 30, frequency: 15.0,
-                bandwidth: 300, size: 300, type: "sensor_msgs/msg/Imu",
-                publisherCount: 1, qosReliability: "", throttled: false
-            });
-            topicModel.append({
-                topic: "/b", msgCount: 20, frequency: 10.0,
-                bandwidth: 200, size: 200, type: "geometry_msgs/msg/Twist",
-                publisherCount: 1, qosReliability: "", throttled: false
-            });
-            tryVerify(function() { return topicTable.sortedIndices.length === 3; }, 1000);
-
-            // Default: size descending
-            compare(topicTable.sortColumn, "size");
+        function test_click_freq_header_sorts_descending() {
+            addSortFixture();
+            mouseClick(find("topicTableHeaderTopic"));
+            mouseClick(find("topicTableHeaderFreq"));
+            compare(topicTable.sortColumn, "freq");
+            compare(topicTable.sortAscending, false, "Numeric columns should default to descending");
+            compare(topicModel.get(topicTable.sortedIndices[0]).frequency, 15.0, "Highest frequency should be first");
+            tryCompare(find("topicTableFreqLabel_0"), "text", "15.0 Hz", 1000);
+        }
+        function test_click_msgs_bandwidth_and_type_headers() {
+            addTopic("/x", 10, 5.0, 100, 100, "a_type", 1, false);
+            addTopic("/y", 20, 10.0, 200, 200, "b_type", 1, false);
+            tryCompare(find("topicTableListView"), "count", 2, 1000);
+            mouseClick(find("topicTableHeaderMsgs"));
+            compare(topicTable.sortColumn, "msgs");
             compare(topicTable.sortAscending, false);
-            compare(topicTable.sortedIndices[0], 1,
-                "Largest size (300, /c) should be first");
-
-            // Toggle to topic ascending
-            topicTable._toggleSort("topic");
+            tryVerify(function () {
+                return rowTopics() === "/y,/x";
+            }, 1000, "Highest message count should be first");
+            mouseClick(find("topicTableHeaderBandwidth"));
+            compare(topicTable.sortColumn, "bandwidth");
+            compare(find("topicTableHeaderBandwidth").text, "BW ↓");
+            tryVerify(function () {
+                return rowTopics() === "/y,/x";
+            }, 1000, "Highest bandwidth should be first");
+            mouseClick(find("topicTableHeaderType"));
+            compare(topicTable.sortColumn, "type");
+            compare(topicTable.sortAscending, true, "Type should default ascending");
+            compare(topicModel.get(topicTable.sortedIndices[0]).type, "a_type");
+            tryCompare(find("topicTableTypeLabel_0"), "text", "a_type", 1000);
+        }
+        function test_click_topic_header_toggles_sort_direction() {
+            addSortFixture();
+            mouseClick(find("topicTableHeaderTopic"));
             compare(topicTable.sortColumn, "topic");
             compare(topicTable.sortAscending, true, "Topic should default to ascending");
-            compare(topicModel.get(topicTable.sortedIndices[0]).topic, "/a",
-                "First should be /a alphabetically");
-            compare(topicModel.get(topicTable.sortedIndices[1]).topic, "/b",
-                "Second should be /b");
-            compare(topicModel.get(topicTable.sortedIndices[2]).topic, "/c",
-                "Third should be /c");
-
-            // Toggle topic to descending
-            topicTable._toggleSort("topic");
+            compare(find("topicTableHeaderTopic").text, "Topic ↑");
+            compare(find("topicTableHeaderSize").text, "Size", "Inactive column should have no arrow");
+            tryVerify(function () {
+                return rowTopics() === "/a,/b,/c";
+            }, 1000, "Rows should be ordered alphabetically");
+            mouseClick(find("topicTableHeaderTopic"));
             compare(topicTable.sortAscending, false);
-            compare(topicModel.get(topicTable.sortedIndices[0]).topic, "/c",
-                "First should be /c in descending");
-
-            // Sort by frequency
-            topicTable._toggleSort("freq");
-            compare(topicTable.sortColumn, "freq");
-            // Numeric columns default to descending
-            compare(topicTable.sortAscending, false);
-            compare(topicModel.get(topicTable.sortedIndices[0]).frequency, 15.0,
-                "Highest frequency should be first");
+            compare(find("topicTableHeaderTopic").text, "Topic ↓");
+            tryVerify(function () {
+                return rowTopics() === "/c,/b,/a";
+            }, 1000, "/c should be first in descending order");
         }
-
-        // ---- Test 3: Formatting ----
-        function test_03_formatting() {
+        function test_default_sort_is_size_descending() {
+            addSortFixture();
+            compare(topicTable.sortColumn, "size");
+            compare(topicTable.sortAscending, false);
+            compare(topicTable.sortedIndices[0], 1, "Largest size (300, /c) should be first");
+            tryCompare(find("topicTableHeaderSize"), "text", "Size ↓", 1000);
+            tryVerify(function () {
+                return rowTopics() === "/c,/b,/a";
+            }, 1000, "Rows should be ordered by size descending");
+        }
+        function test_dynamic_model_updates() {
+            addTopic("/dynamic", 0, 0, 0, 0, "std_msgs/msg/String", 1, false);
+            var listView = find("topicTableListView");
+            tryCompare(listView, "count", 1, 1000);
+            compare(topicTable.sortedIndices.length, 1);
+            addTopic("/dynamic2", 5, 1.0, 50, 50, "std_msgs/msg/Int32", 1, false);
+            tryCompare(listView, "count", 2, 1000, "Should have 2 entries after append");
+            compare(topicTable.sortedIndices.length, 2);
+            tryVerify(function () {
+                return rowTopics() === "/dynamic2,/dynamic";
+            }, 1000, "New larger topic should be sorted first");
+        }
+        function test_empty_model_shows_empty_state() {
+            var listView = find("topicTableListView");
+            var emptyLabel = find("topicTableEmptyStateLabel");
+            verify(listView !== null);
+            verify(emptyLabel !== null);
+            compare(listView.count, 0, "Empty model should render no rows");
+            compare(topicTable.sortedIndices.length, 0, "Sorted indices should be empty for empty model");
+            verify(emptyLabel.visible, "Empty state label should be visible");
+        }
+        function test_format_helpers() {
             compare(topicTable.formatBytes(500), "500 B");
             compare(topicTable.formatBytes(1536), "1.5 KB");
             compare(topicTable.formatBytes(1572864), "1.5 MB");
             compare(topicTable.formatBytes(1610612736), "1.5 GB");
-
             compare(topicTable.formatBandwidth(500), "500 B/s");
             compare(topicTable.formatBandwidth(1500), "1.5 kB/s");
             compare(topicTable.formatBandwidth(1500000), "1.5 MB/s");
-
             compare(topicTable.formatFreq(30.0), "30.0 Hz");
             compare(topicTable.formatFreq(1500.0), "1.5 kHz");
         }
-
-        // ---- Test 4: Empty model ----
-        function test_04_empty_model() {
-            topicModel.clear();
-            tryVerify(function() { return topicTable.sortedIndices.length === 0; }, 1000,
-                "Sorted indices should be empty for empty model");
+        function test_renders_rows_from_model() {
+            addTopic("/camera", 100, 30.0, 15000, 500000, "sensor_msgs/msg/Image", 1, false);
+            addTopic("/lidar", 50, 10.0, 5000, 200000, "sensor_msgs/msg/PointCloud2", 1, false);
+            addTopic("/imu", 200, 100.0, 1000, 50000, "sensor_msgs/msg/Imu", 1, false);
+            var listView = find("topicTableListView");
+            tryCompare(listView, "count", 3, 1000, "Should render 3 rows");
+            compare(topicTable.sortedIndices.length, 3, "Should have 3 sorted indices");
+            verify(!find("topicTableEmptyStateLabel").visible, "Empty state should be hidden");
+            tryCompare(find("topicTableTopicLabel_0"), "text", "/camera", 1000);
+            compare(find("topicTableMsgsLabel_0").text, "100");
+            compare(find("topicTableFreqLabel_0").text, "30.0 Hz");
+            compare(find("topicTableBandwidthLabel_0").text, topicTable.formatBandwidth(15000));
+            compare(find("topicTableSizeLabel_0").text, topicTable.formatBytes(500000));
+            compare(find("topicTableTypeLabel_0").text, "sensor_msgs/msg/Image");
+        }
+        function test_row_labels_use_formatting() {
+            addTopic("/fmt", 7, 1500.0, 1500000, 1572864, "std_msgs/msg/String", 1, false);
+            tryCompare(find("topicTableListView"), "count", 1, 1000);
+            tryCompare(find("topicTableSizeLabel_0"), "text", "1.5 MB", 1000);
+            compare(find("topicTableBandwidthLabel_0").text, "1.5 MB/s");
+            compare(find("topicTableFreqLabel_0").text, "1.5 kHz");
+            compare(find("topicTableMsgsLabel_0").text, "7");
+        }
+        function test_special_topic_states_are_highlighted() {
+            addTopic("/no_pub", 0, 0, 0, 0, "std_msgs/msg/String", 0, false);
+            addTopic("/no_msgs", 0, 0, 0, 0, "std_msgs/msg/String", 1, false);
+            addTopic("/throttled", 50, 10.0, 500, 500, "std_msgs/msg/String", 1, true);
+            tryCompare(find("topicTableListView"), "count", 3, 1000, "Should have 3 entries");
+            mouseClick(find("topicTableHeaderTopic"));
+            tryVerify(function () {
+                return rowTopics() === "/no_msgs,/no_pub,/throttled";
+            }, 1000);
+            var noMsgsRow = find("topicTableRow_0");
+            var noPubRow = find("topicTableRow_1");
+            verify(Qt.colorEqual(noPubRow.color, Qt.rgba(1, 0, 0, 0.08)), "Row without publishers should be tinted red");
+            verify(Qt.colorEqual(noMsgsRow.color, Qt.rgba(1, 1, 0, 0.08)), "Row without messages should be tinted yellow");
+            verify(Qt.colorEqual(find("topicTableTopicLabel_1").color, Material.color(Material.Red, Material.Shade200)), "Topic without publishers should be red");
+            verify(Qt.colorEqual(find("topicTableTopicLabel_0").color, Material.color(Material.Orange, Material.Shade200)), "Topic without messages should be orange");
+            var cyan = Material.color(Material.Cyan, Material.Shade200);
+            verify(Qt.colorEqual(find("topicTableTopicLabel_2").color, cyan), "Throttled topic should be cyan");
+            verify(Qt.colorEqual(find("topicTableFreqLabel_2").color, cyan), "Throttled frequency should be cyan");
+            verify(Qt.colorEqual(find("topicTableBandwidthLabel_2").color, cyan), "Throttled bandwidth should be cyan");
         }
 
-        // ---- Test 5: Sort by all columns ----
-        function test_05_all_sort_columns() {
-            topicModel.append({
-                topic: "/x", msgCount: 10, frequency: 5.0,
-                bandwidth: 100, size: 100, type: "a_type",
-                publisherCount: 1, qosReliability: "", throttled: false
-            });
-            topicModel.append({
-                topic: "/y", msgCount: 20, frequency: 10.0,
-                bandwidth: 200, size: 200, type: "b_type",
-                publisherCount: 1, qosReliability: "", throttled: false
-            });
-            tryVerify(function() { return topicTable.sortedIndices.length === 2; }, 1000);
-
-            // Sort by msgs
-            topicTable._toggleSort("msgs");
-            compare(topicTable.sortColumn, "msgs");
-
-            // Sort by bandwidth
-            topicTable._toggleSort("bandwidth");
-            compare(topicTable.sortColumn, "bandwidth");
-
-            // Sort by type (text column defaults ascending)
-            topicTable._toggleSort("type");
-            compare(topicTable.sortColumn, "type");
-            compare(topicTable.sortAscending, true,
-                "Type should default ascending");
-            compare(topicModel.get(topicTable.sortedIndices[0]).type, "a_type");
-        }
-
-        // ---- Test 6: Model with special states ----
-        function test_06_special_topic_states() {
-            topicModel.clear();
-            // No publishers
-            topicModel.append({
-                topic: "/no_pub", msgCount: 0, frequency: 0,
-                bandwidth: 0, size: 0, type: "std_msgs/msg/String",
-                publisherCount: 0, qosReliability: "", throttled: false
-            });
-            // No messages yet
-            topicModel.append({
-                topic: "/no_msgs", msgCount: 0, frequency: 0,
-                bandwidth: 0, size: 0, type: "std_msgs/msg/String",
-                publisherCount: 1, qosReliability: "", throttled: false
-            });
-            // Throttled
-            topicModel.append({
-                topic: "/throttled", msgCount: 50, frequency: 10.0,
-                bandwidth: 500, size: 500, type: "std_msgs/msg/String",
-                publisherCount: 1, qosReliability: "", throttled: true
-            });
-
-            tryVerify(function() { return topicTable.sortedIndices.length === 3; }, 1000,
-                "Should have 3 entries");
-
-            // Verify the data is correct in the model
-            compare(topicModel.get(0).publisherCount, 0,
-                "First topic should have no publishers");
-            compare(topicModel.get(1).publisherCount, 1,
-                "Second topic should have publishers");
-            compare(topicModel.get(1).msgCount, 0,
-                "Second topic should have no messages");
-            compare(topicModel.get(2).throttled, true,
-                "Third topic should be throttled");
-        }
-
-        // ---- Test 7: Dynamic model updates ----
-        function test_07_dynamic_updates() {
-            topicModel.clear();
-            topicModel.append({
-                topic: "/dynamic", msgCount: 0, frequency: 0,
-                bandwidth: 0, size: 0, type: "std_msgs/msg/String",
-                publisherCount: 1, qosReliability: "", throttled: false
-            });
-            tryVerify(function() { return topicTable.sortedIndices.length === 1; }, 1000);
-
-            // Add another topic
-            topicModel.append({
-                topic: "/dynamic2", msgCount: 5, frequency: 1.0,
-                bandwidth: 50, size: 50, type: "std_msgs/msg/Int32",
-                publisherCount: 1, qosReliability: "", throttled: false
-            });
-            tryVerify(function() { return topicTable.sortedIndices.length === 2; }, 1000,
-                "Should have 2 entries after append");
-        }
+        name: "TopicTableTest"
+        when: windowShown
     }
 }

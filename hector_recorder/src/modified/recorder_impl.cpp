@@ -12,13 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Changelog Jonathan Lichtenfeld 
+// Changelog Jonathan Lichtenfeld
 // 12.6.2024:
 // - Extract RecorderImpl from rosbag2_transport/recorder.cpp to its own file
-// - Add get_topics_names_to_info() 
+// - Add get_topics_names_to_info()
 // - Add get_bagfile_duration()
-// 25.02.2026: 
+// 25.02.2026:
 // - Add topic throttle logic
+// 30.10.2026:
+// - Respect record_options.start_paused in record()
 
 
 #include "hector_recorder/modified/recorder_impl.hpp"
@@ -115,7 +117,7 @@ void RecorderImpl::record()
       "Called Recorder::record() while already in recording, dismissing request.");
     return;
   }
-  paused_ = false;
+  paused_ = record_options_.start_paused;
   topic_qos_profile_overrides_ = record_options_.topic_qos_profile_overrides;
   if (record_options_.rmw_serialization_format.empty()) {
     throw std::runtime_error("No serialization format specified!");
@@ -375,7 +377,7 @@ std::unordered_map<std::string, std::string>
 RecorderImpl::get_missing_topics(const std::unordered_map<std::string, std::string> & all_topics)
 {
   std::unordered_map<std::string, std::string> missing_topics;
-  for (const auto & i : all_topics) {    
+  for (const auto & i : all_topics) {
     if (subscriptions_.find(i.first) == subscriptions_.end()) {
       missing_topics.emplace(i.first, i.second);
     }
@@ -759,4 +761,3 @@ void RecorderImpl::warn_if_new_qos_for_subscribed_topic(const std::string & topi
 }
 
 }  // namespace hector_recorder
-
